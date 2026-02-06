@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cohort Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body class="app-bg">
+
+  <div class="top-nav">
+    <button class="nav-tab active">Monday Cohort</button>
+    <button class="nav-tab">Tuesday Cohort</button>
+    <button class="nav-tab">Wednesday Cohort</button>
+    <button class="nav-tab">Thursday Cohort</button>
+  </div>
+
+  <div class="container">
+    <div class="header-row">
+      <div>
+        <div class="muted">Currently Viewing:</div>
+        <h1>Wednesday Cohort</h1>
+      </div>
+      <button class="btn-primary">Upload Cohort Excel</button>
+    </div>
+
+    <div class="survey-tabs">
+      <button class="survey-tab active">Survey 1</button>
+      <button class="survey-tab">Survey 2</button>
+      <button class="survey-tab">Survey 3</button>
+      <button class="survey-tab">Survey 4</button>
+      <button class="survey-tab">Survey 5</button>
+      <button class="survey-tab">Survey 6</button>
+    </div>
+
+    <div class="card">
+      {% include "partials/client_table.html" %}
+    </div>
+  </div>
+
+</body>
+</html>

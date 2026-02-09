@@ -23,7 +23,7 @@ def init_db():
     conn = psycopg2.connect(NEON_DATABASE_URL)
     cur = conn.cursor()
 
-    # 1. Recreate the table with ALL necessary columns
+    # 1. Cohort Candidates Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS cohort_candidates (
             id SERIAL PRIMARY KEY,
@@ -44,13 +44,13 @@ def init_db():
         );
     """)
 
-    # 2. Create the Survey Submissions table
+    # 2. Survey Submissions Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS survey_submissions (
             id SERIAL PRIMARY KEY,
             respondent_email TEXT,
             survey_number INTEGER,
-            cohort_tag TEXT,  -- <--- Make sure this matches
+            cohort_tag TEXT,
             q1 INTEGER, q2 INTEGER, q3 INTEGER, q4 INTEGER,
             apply_plan TEXT,
             key_learnings TEXT,
@@ -58,13 +58,82 @@ def init_db():
         );
     """)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    # 3. USERS Table (For Login)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        );
+    """)
 
+    # 4. Insert default admin if table is empty
+    cur.execute("""
+        INSERT INTO users (username, password) 
+        VALUES ('0aktree', '@dm!n0aktree') 
+        ON CONFLICT (username) DO NOTHING;
+    """)
+
+    conn.commit()
+    cur.close()  # Only close after EVERYTHING is done
+    conn.close()
+    print("Database initialized successfully.")
 # ==========================
 # FILE LOADER (CSV + EXCEL)
 # ==========================
+
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login" # Redirects here if user isn't logged in
+
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = psycopg2.connect(NEON_DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    if row:
+        return User(row[0], row[1])
+    return None
+
+# ==========================
+# LOGIN ROUTES
+# ==========================
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        
+        conn = psycopg2.connect(NEON_DATABASE_URL)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user_row = cur.fetchone()
+        cur.close(); conn.close()
+
+        # Simple check (For better security, use check_password_hash)
+        if user_row and user_row['password'] == password:
+            user_obj = User(user_row['id'], user_row['username'])
+            login_user(user_obj)
+            return redirect(url_for("dashboard"))
+        else:
+            flash("Invalid username or password")
+            
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
 
 def load_tabular_file(file):
     filename = file.filename.lower()
@@ -140,6 +209,7 @@ def cohort_analysis(cohort_name):
     })
 
 @app.route("/")
+@login_required
 def dashboard():
     cohort = request.args.get("cohort", "All")
     conn = psycopg2.connect(NEON_DATABASE_URL)

@@ -2,27 +2,196 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Success - Download Slides</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Success — Download Resources</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0f172a;
+            --accent: #3b82f6;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at 2px 2px, #e2e8f0 1px, transparent 0);
+            background-size: 40px 40px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .success-container {
+            width: 100%;
+            max-width: 440px;
+            padding: 20px;
+            animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 32px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        .icon-wrap {
+            width: 80px;
+            height: 80px;
+            background: #f0fdf4;
+            color: #16a34a;
+            font-size: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 24px;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 2rem;
+            color: var(--primary);
+            margin: 0 0 12px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 32px;
+            font-size: 1.05rem;
+        }
+
+        .download-zone {
+            background: var(--bg);
+            border: 1.5px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .download-zone:hover {
+            border-color: var(--accent);
+            background: #ffffff;
+            box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.1);
+        }
+
+        .file-label {
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .btn-download {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            padding: 16px 24px;
+            border-radius: 16px;
+            font-weight: 600;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .btn-download:hover {
+            background: #000;
+            transform: translateY(-2px);
+        }
+
+        .btn-download:active {
+            transform: translateY(0);
+        }
+
+        .footer-meta {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .meta-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin: 4px 0;
+        }
+
+        .meta-text strong {
+            color: var(--primary);
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 24px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
 </head>
-<body class="survey-body" style="display: flex; align-items: center; min-height: 100vh;">
-    <div class="survey-card" style="text-align: center;">
-        <div style="font-size: 60px; margin-bottom: 20px;">🎉</div>
-        <h1>Thank You!</h1>
-        <p style="color: #64748b; margin-bottom: 30px;">Your feedback for <strong>{{ session|upper }}</strong> has been recorded.</p>
-        
-        <div style="background: #f8fafc; padding: 25px; border-radius: 12px; border: 2px dashed #e2e8f0;">
-            <p style="margin-bottom: 15px; font-weight: 600;">Download Session Resources:</p>
-            <a href="{{ url_for('static', filename='decks/' + cohort.lower() + '/' + session.lower() + '.pdf') }}" 
-               download class="close-btn-premium" 
-               style="text-decoration: none; width: auto; display: inline-flex; padding: 0 30px;">
-               Download {{ session|upper }} Slide Deck (PDF)
+<body>
+
+    <div class="success-container">
+        <div class="glass-card">
+            <div class="icon-wrap">✓</div>
+            
+            <h1>Success!</h1>
+            <p class="subtitle">
+                Your feedback for <strong>{{ session|upper }}</strong> has been safely recorded.
+            </p>
+
+            <div class="download-zone">
+                <span class="file-label">Available Resource</span>
+                <a href="{{ url_for('static', filename='decks/' + cohort.lower() + '/' + session.upper() + '.pptx') }}" 
+                   download="{{ session.upper() }}.pptx" 
+                   class="btn-download">
+                    <span>Download Deck</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </a>
+            </div>
+
+            <div class="footer-meta">
+                <p class="meta-text">Verified: <strong>{{ email }}</strong></p>
+                <p class="meta-text" style="opacity: 0.7; font-size: 0.75rem;">Cohort: {{ cohort|capitalize }}</p>
+            </div>
+
+            <a href="/" class="back-link">
+                ← Return to Dashboard
             </a>
         </div>
-        
-        <p style="margin-top: 25px; font-size: 0.85rem; color: #94a3b8;">
-            Linked to: {{ email }}
-        </p>
     </div>
+
 </body>
 </html>

@@ -1,10 +1,9 @@
-
-from flask import Flask, render_template, request, redirect, jsonify, url_for, flash
-import pandas as pd
-import psycopg2
-import camelot
 import os
 import re
+import pandas as pd
+import psycopg2
+import psycopg2.extras
+from flask import Flask, render_template, request, redirect, jsonify, url_for, flash, send_from_directory
 from psycopg2.extras import execute_values
 from io import StringIO
 
@@ -393,54 +392,29 @@ def reset_db_once():
     cur.close()
     conn.close()
     print("Tables dropped. Recreating with 'cohort_tag'...")
-import psycopg2
 
-def seed_dummy_data():
-    emails = [
-    "bshoba@medsac.co.za"
-    "Info.blackstone@outlookl.co.za"
-
-    "dibategladys@gmail.com"
-    "hlamalani@sidaconsulting.com"
-    "Henterpriseptyltd@gmail.com"
-    "jackson@khula.co.za"
-    "Enymasilela@gmail.com"
-    "katlegomatabane55@gmail.com"
-    "kelebogileramosunya@gmail.com"
-    "kgalalelo@bbud.co.za"
-    "dimezaprojects@gmail.com"
-    "selo.setsha@gmail.com"
-    "mapsrams1@gmail.com"
-    "smart1bontle@gmail.com"
-    "ndoumasindi@gmail.com"
-    "modisaotsile@Carngocleaning.co.za"
-
-    "Zarfuwi@gmail.com",
-    "nana@Nkamathebula.co.za",
-    "neal@kgb.co.za",
-    "naidoonirvasha@gmail.com"]
+@app.route('/download/<cohort>/<session_id>')
+def download_deck(cohort, session_id):
+    # Matches your folder names (e.g., 'monday')
+    cohort_folder = cohort.lower().strip()
     
-    conn = psycopg2.connect(NEON_DATABASE_URL)
-    cur = conn.cursor()
+    # Matches your filenames (e.g., 'S1.pptx')
+    filename = f"{session_id.upper()}.pptx"
     
-    # Generate data for Sessions 1 through 3 for each email
-    for email in emails:
-        for s_num in range(1, 4):  # S1, S2, S3
-            cur.execute("""
-                INSERT INTO survey_submissions (
-                    respondent_email, survey_number, cohort_tag,
-                    q1, q2, q3, q4, apply_plan, key_learnings
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                email, s_num, "Monday",
-                4, 5, 4, 3, # Dummy scores
-                f"Implementing the S{s_num} strategy into my daily operations.",
-                f"Learned about high-level scaling and S{s_num} efficiency."
-            ))
+    # Construct the path to: static/decks/monday/
+    # Using os.path.join is the modern standard
+    directory = os.path.join(app.root_path, 'static', 'decks', cohort_folder)
     
-    conn.commit()
-    cur.close(); conn.close()
-    print("Dummy data seeded for Monday cohort!")
+    try:
+        return send_from_directory(
+            directory, 
+            filename, 
+            as_attachment=True
+        )
+    except FileNotFoundError:
+        flash(f"Resource {filename} not found for {cohort}.")
+        return redirect(url_for('dashboard', cohort=cohort))
+    
 
 if __name__ == "__main__":
     # 1. UNCOMMENT the line below. 
@@ -450,5 +424,4 @@ if __name__ == "__main__":
     # reset_db_once() 
     
     init_db()
-    seed_dummy_data()
     app.run(debug=True)

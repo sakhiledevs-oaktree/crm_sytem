@@ -69,37 +69,70 @@
         </form>
 
         {% else %}
-                <form method="POST">
-                    <input type="hidden" name="step" value="2">
-                    <input type="hidden" name="verified_email" value="{{ user.email }}">
-                    <input type="hidden" name="verified_name" value="{{ user.client }}">
-                    <input type="hidden" name="verified_phone" value="{{ user.phone }}">
+        <form method="POST">
+            <input type="hidden" name="step" value="2">
+            <input type="hidden" name="verified_email" value="{{ user.email }}">
 
-                    <div class="user-badge">
-                        <span style="font-size: 0.75rem; color: #64748b;">Logged in as:</span><br>
-                        <strong>{{ user.client }}</strong>
+            <div class="user-badge">
+                <span style="font-size: 0.75rem; color: #64748b;">Logged in as:</span><br>
+                <strong>{{ user.client }}</strong>
+            </div>
+
+            <div class="q-group">
+                <label>1. Quality of Content</label>
+                <div class="rating-row">
+                    {% for i in range(1, 6) %}
+                    <div class="rating-opt">
+                        <input type="radio" name="quality" id="q{{i}}" value="{{i}}" required>
+                        <label for="q{{i}}">{{i}}</label>
                     </div>
-                    
-                    <button type="submit" class="btn-submit">Submit & Unlock Deck</button>
-                </form>
-                {% endif %}    </div>
-
-                <input type="hidden" name="step" value="2">
-                <input type="hidden" name="verified_email" value="{{ user.email }}">
-                <input type="hidden" name="verified_name" value="{{ user.client }}">
-                <input type="hidden" name="verified_phone" value="{{ user.phone }}">
-
-            {% if not is_guest %}
-                <div class="user-badge" style="border-left: 5px solid #ef4444; background: #fff1f1;">
-                    <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700; text-transform: uppercase;">Verified Member</span><br>
-                    <strong style="font-size: 1.2rem; color: #1e293b;">{{ user.client }}</strong>
+                    {% endfor %}
                 </div>
-            {% else %}
-                <div class="user-badge" style="border-left: 5px solid #94a3b8; background: #f8fafc;">
-                    <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Unverified Guest</span><br>
-                    <strong style="font-size: 1.2rem; color: #475569;">Guest Profile</strong>
-                    <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 5px;">Your feedback will be recorded, but won't count towards official cohort attendance.</p>
+            </div>
+
+            <div class="q-group">
+                <label>2. Business Relevance</label>
+                <div class="rating-row">
+                    {% for i in range(1, 6) %}
+                    <div class="rating-opt">
+                        <input type="radio" name="relevance" id="r{{i}}" value="{{i}}" required>
+                        <label for="r{{i}}">{{i}}</label>
+                    </div>
+                    {% endfor %}
                 </div>
+            </div>
+
+            <div class="q-group">
+                <label>Brief Action Plan</label>
+                <textarea name="apply_plan" required placeholder="How will you apply this?"></textarea>
+            </div>
+
+            <div class="q-group">
+                <label>Top 3 Key Learnings</label>
+                <textarea name="key_learnings" required placeholder="1. ... 2. ... 3. ..."></textarea>
+            </div>
+
+            <button type="submit" class="btn-submit">Submit & Unlock Deck</button>
+        </form>
         {% endif %}
+    </div>
+
+        <input type="hidden" name="step" value="2">
+        <input type="hidden" name="verified_email" value="{{ user.email }}">
+        <input type="hidden" name="verified_name" value="{{ user.client }}">
+        <input type="hidden" name="verified_phone" value="{{ user.phone }}">
+
+    {% if not is_guest %}
+        <div class="user-badge" style="border-left: 5px solid #ef4444; background: #fff1f1;">
+            <span style="font-size: 0.75rem; color: #ef4444; font-weight: 700; text-transform: uppercase;">Verified Member</span><br>
+            <strong style="font-size: 1.2rem; color: #1e293b;">{{ user.client }}</strong>
+        </div>
+    {% else %}
+        <div class="user-badge" style="border-left: 5px solid #94a3b8; background: #f8fafc;">
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Unverified Guest</span><br>
+            <strong style="font-size: 1.2rem; color: #475569;">Guest Profile</strong>
+            <p style="font-size: 0.75rem; color: #94a3b8; margin-top: 5px;">Your feedback will be recorded, but won't count towards official cohort attendance.</p>
+        </div>
+{% endif %}
 </body>
 </html>

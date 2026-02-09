@@ -1,42 +1,270 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Cohort Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <meta charset="UTF-8">
+    <title>CRM Cohort Manager | Oaktree People Solutions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        /* Specific tweaks to match the visual image provided */
+        .chart-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 15px; font-weight: 700; }
+        .feed-item { padding: 12px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
+        .feed-item:hover { background: #f8fafc; }
+        .s-tab.active { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
+        .progress-bg { background: #f1f5f9; height: 8px; border-radius: 10px; overflow: hidden; margin-top: 4px; }
+        .progress-fill { height: 100%; transition: width 0.5s ease-in-out; }
+        /* Add this to your <style> block in dashboard.html */
+        .table-responsive { position: relative; }
+        .survey-dots span { transition: transform 0.2s; }
+        .survey-dots span:hover { transform: scale(1.3); cursor: help; }
+    </style>
 </head>
 <body class="app-bg">
 
-  <div class="top-nav">
-    <button class="nav-tab active">Monday Cohort</button>
-    <button class="nav-tab">Tuesday Cohort</button>
-    <button class="nav-tab">Wednesday Cohort</button>
-    <button class="nav-tab">Thursday Cohort</button>
-  </div>
+<nav class="top-nav">
+    <div class="nav-container">
+        <div class="brand">CRM <span> OAKTREEPEOPLE</span></div>
+        <div class="nav-buttons">
+            <a class="nav-btn {% if cohort == 'All' %}active{% endif %}" href="/?cohort=All">All Candidates</a>
+            {% for d in ["Monday", "Tuesday", "Wednesday", "Thursday"] %}
+              <a class="nav-btn {% if cohort == d %}active{% endif %}" href="/?cohort={{ d }}">
+                  <span class="dot {{ d|lower }}"></span> {{ d }}
+              </a>
+            {% endfor %}
+        </div>
+        <div class="nav-right">
+            <form method="POST" action="/upload/All" enctype="multipart/form-data" id="masterUploadForm">
+                <input type="file" name="file" id="masterFile" hidden accept=".csv, .xlsx, .xls" onchange="this.form.submit()">
+                <label for="masterFile" class="import-trigger">
+                    <span class="icon">↑</span> Import Master List
+                </label>
+            </form>
+        </div>
+    </div>
+</nav>
 
-  <div class="container">
-    <div class="header-row">
-      <div>
-        <div class="muted">Currently Viewing:</div>
-        <h1>Wednesday Cohort</h1>
-      </div>
-      <button class="btn-primary">Upload Cohort Excel</button>
+<div class="container">
+    <header class="page-header">
+        <div class="header-titles">
+            <div class="breadcrumb">Mentorship Program / {{ cohort }}</div>
+            <h1>{{ cohort if cohort != 'All' else 'Master Database' }} 
+                <span class="count-badge">{{ rows|length }} entries</span>
+            </h1>
+        </div>
+        <div class="search-area">
+            <input type="text" id="crmSearch" placeholder="Search by name, email, or ID..." onkeyup="filterTable()">
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert success">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if cohort != 'All' %}
+    <div class="analytics-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+        <div class="data-card" style="padding: 20px;">
+            <h3 class="chart-label">Attendance Tracker</h3>
+            <div id="attendanceTrendChart"></div>
+        </div>
+        <div class="data-card" style="padding: 20px;">
+            <h3 class="chart-label">Sentiment Pulse (Avg)</h3>
+            <div id="sentimentRadarChart"></div>
+        </div>
+        <div class="data-card" style="padding: 20px; text-align: center;">
+            <h3 class="chart-label">Response Gauge</h3>
+            <div id="responseGaugeChart"></div>
+        </div>
     </div>
 
-    <div class="survey-tabs">
-      <button class="survey-tab active">Survey 1</button>
-      <button class="survey-tab">Survey 2</button>
-      <button class="survey-tab">Survey 3</button>
-      <button class="survey-tab">Survey 4</button>
-      <button class="survey-tab">Survey 5</button>
-      <button class="survey-tab">Survey 6</button>
+    <div class="data-card" style="padding: 20px; margin-bottom: 24px;">
+        <h3 class="chart-label">Recent Key Learnings</h3>
+        <div class="learning-feed" style="max-height: 180px; overflow-y: auto;">
+            {% for c in comments %}
+            <div class="feed-item">
+                <div style="display: flex; gap: 10px;">
+                    <span style="color: #ef4444; font-weight: 800; font-size: 0.7rem;">LEARNING</span>
+                    <span style="font-size: 0.85rem; color: #1e293b;">"{{ c.key_learnings }}"</span>
+                </div>
+                <div style="margin-left: 70px; font-size: 0.75rem; color: #64748b; margin-top: 4px;">
+                    <strong>Plan:</strong> {{ c.apply_plan[:120] }}...
+                </div>
+            </div>
+            {% endfor %}
+            {% if not comments %}
+            <p style="text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 20px;">No survey responses yet for this cohort.</p>
+            {% endif %}
+        </div>
     </div>
 
-    <div class="card">
-      {% include "partials/client_table.html" %}
+    <div class="data-card" style="padding: 20px; margin-bottom: 24px; border-left: 5px solid #ef4444;">
+        <h3 class="chart-label" style="margin-bottom: 10px;">Session Distribution Tool</h3>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.85rem; font-weight: 600;">Copy Survey Link:</span>
+            {% for i in range(1, 7) %}
+            <button class="nav-btn" style="padding: 6px 12px; font-size: 0.75rem;" onclick="copySurveyLink('{{ cohort|lower }}', 's{{ i }}')">
+                S{{ i }}
+            </button>
+            {% endfor %}
+            <span id="copyStatus" style="font-size: 0.75rem; color: #10b981; display: none; margin-left: 10px;">✓ Copied!</span>
+        </div>
     </div>
-  </div>
+    {% endif %}
 
+    <div class="data-card">
+        {% include "partials/client_table.html" %}
+    </div>
+</div>
+
+<div id="sideDrawer" class="drawer">
+    <div class="drawer-header" style="display: flex; align-items: center; gap: 16px; padding: 20px; border-bottom: 1px solid #f1f5f9;">
+        <button onclick="closeDrawer()" class="close-btn-premium" style="background: #f1f5f9; color: #64748b;">&times;</button>
+        <div class="header-info">
+            <h2 id="drawerName" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Candidate Profile</h2>
+            <span id="drawerEmail" style="color: #64748b; font-size: 0.8rem;"></span>
+        </div>
+    </div>
+
+    <div class="drawer-content" style="padding: 20px;">
+        <div class="survey-tabs" style="display: flex; gap: 6px; margin-bottom: 20px;">
+            {% for i in range(1, 7) %}
+            <button class="s-tab" id="tab-s{{ i }}" 
+                    style="flex: 1; padding: 8px; font-size: 0.75rem; border: 1px solid #e2e8f0; border-radius: 6px; background: white; cursor: pointer;"
+                    onclick="fetchSurvey({{ i }})">S{{ i }}</button>
+            {% endfor %}
+        </div>
+        
+        <div id="surveyDetailsArea">
+            <div id="questionsList">
+                <p style="color: #94a3b8; text-align: center; margin-top: 40px;">Select a session to view detailed feedback</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+
+<script>
+let currentEmail = null;
+
+function filterTable() {
+    let input = document.getElementById("crmSearch");
+    let filter = input.value.toUpperCase();
+    let tr = document.querySelectorAll(".table tbody tr");
+    tr.forEach(row => {
+        let text = row.innerText.toUpperCase();
+        row.style.display = text.includes(filter) ? "" : "none";
+    });
+}
+
+function openCandidateProfile(email, name) {
+    currentEmail = email;
+    document.getElementById('drawerName').innerText = name;
+    document.getElementById('drawerEmail').innerText = email;
+    document.getElementById('sideDrawer').classList.add('open');
+    document.getElementById('drawerOverlay').classList.add('active');
+    fetchSurvey(1); 
+}
+
+function closeDrawer() {
+    document.getElementById('sideDrawer').classList.remove('open');
+    document.getElementById('drawerOverlay').classList.remove('active');
+}
+
+async function fetchSurvey(num) {
+    document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-s${num}`).classList.add('active');
+
+    try {
+        const response = await fetch(`/api/surveys/${currentEmail}/${num}`);
+        const data = await response.json();
+        renderIndividualScores(data.scores, data.feedback);
+    } catch (e) {
+        renderIndividualScores([0,0,0,0], null);
+    }
+}
+
+function renderIndividualScores(scores, feedback) {
+    const container = document.getElementById('questionsList');
+    const labels = ["Quality", "Relevance", "Confidence", "Utility"];
+    
+    let html = labels.map((l, i) => `
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600;">
+                <span>${l}</span><span>${scores[i] || 0}/5</span>
+            </div>
+            <div class="progress-bg">
+                <div class="progress-fill" style="width: ${(scores[i] || 0) * 20}%; background: #ef4444;"></div>
+            </div>
+        </div>
+    `).join('');
+
+    if (feedback) {
+        html += `
+            <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Key Learnings</h4>
+                <p style="font-size: 0.85rem; color: #1e293b; margin-bottom: 15px; font-style: italic;">"${feedback.key_learnings}"</p>
+                
+                <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Application Plan</h4>
+                <p style="font-size: 0.85rem; color: #1e293b;">${feedback.apply_plan}</p>
+            </div>
+        `;
+    } else {
+        html += `<p style="text-align: center; color: #94a3b8; font-size: 0.85rem; margin-top: 30px;">No data recorded for this session.</p>`;
+    }
+    container.innerHTML = html;
+}
+
+function copySurveyLink(cohort, session) {
+    const fullUrl = `${window.location.origin}/survey/${cohort}/${session}`;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+        const status = document.getElementById('copyStatus');
+        status.style.display = 'inline';
+        setTimeout(() => { status.style.display = 'none'; }, 2000);
+    });
+}
+
+{% if cohort != 'All' %}
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Attendance Tracker (Line)
+    new ApexCharts(document.querySelector("#attendanceTrendChart"), {
+        series: [{ name: 'Participants', data: {{ attendance_trend|tojson }} }],
+        chart: { type: 'area', height: 180, toolbar: {show: false} },
+        colors: ['#ef4444'],
+        stroke: { curve: 'smooth', width: 2 },
+        xaxis: { categories: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'] },
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05 } }
+    }).render();
+
+    // 2. Sentiment Radar (Averages)
+    new ApexCharts(document.querySelector("#sentimentRadarChart"), {
+        series: [{
+            name: 'Avg Score',
+            data: [{{ stats.q1 }}, {{ stats.q2 }}, {{ stats.q3 }}, {{ stats.q4 }}]
+        }],
+        chart: { type: 'radar', height: 180, toolbar: {show: false} },
+        xaxis: { categories: ['Quality', 'Relevance', 'Confidence', 'Utility'] },
+        colors: ['#ef4444'],
+        yaxis: { max: 5, show: false }
+    }).render();
+
+    // 3. Response Gauge (Donut)
+    const total = {{ rows|length }};
+    const completed = {{ attendance_trend|sum }} / 6; // Average completion across all 6 slots
+    new ApexCharts(document.querySelector("#responseGaugeChart"), {
+        series: [Math.round(completed), Math.max(0, total - Math.round(completed))],
+        chart: { type: 'donut', height: 180 },
+        labels: ['Active', 'Inactive'],
+        colors: ['#ef4444', '#f1f5f9'],
+        legend: { show: false },
+        plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, label: 'Engaged' } } } } }
+    }).render();
+});
+{% endif %}
+</script>
 </body>
 </html>

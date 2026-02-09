@@ -1,4 +1,6 @@
-#!/Users/kristencorner/Downloads/cohort_dashboard/app/env/bin/python3
+#!/bin/sh
+'''exec' "/Users/kristencorner/Downloads/cohort_dashboard 2/app/env/bin/python3" "$0" "$@"
+' '''
 # -*- coding: utf-8 -*-
 import re
 import sys

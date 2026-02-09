@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Success - Download Slides</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body class="survey-body" style="display: flex; align-items: center; min-height: 100vh;">
+    <div class="survey-card" style="text-align: center;">
+        <div style="font-size: 60px; margin-bottom: 20px;">🎉</div>
+        <h1>Thank You!</h1>
+        <p style="color: #64748b; margin-bottom: 30px;">Your feedback for <strong>{{ session|upper }}</strong> has been recorded.</p>
+        
+        <div style="background: #f8fafc; padding: 25px; border-radius: 12px; border: 2px dashed #e2e8f0;">
+            <p style="margin-bottom: 15px; font-weight: 600;">Download Session Resources:</p>
+            <a href="{{ url_for('static', filename='decks/' + cohort.lower() + '/' + session.lower() + '.pdf') }}" 
+               download class="close-btn-premium" 
+               style="text-decoration: none; width: auto; display: inline-flex; padding: 0 30px;">
+               Download {{ session|upper }} Slide Deck (PDF)
+            </a>
+        </div>
+        
+        <p style="margin-top: 25px; font-size: 0.85rem; color: #94a3b8;">
+            Linked to: {{ email }}
+        </p>
+    </div>
+</body>
+</html>

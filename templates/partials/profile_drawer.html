@@ -1,0 +1,27 @@
+<div id="sideDrawer" class="drawer">
+    <div class="drawer-header">
+        <button onclick="closeDrawer()" class="close-btn">&times;</button>
+        <h2 id="drawerName">Candidate Name</h2>
+        <p id="drawerInfo">Mentorship 1 • Tuesday</p>
+    </div>
+    
+    <div class="drawer-body">
+        <h3>Survey Insights</h3>
+        <div class="survey-tabs">
+            <button class="tab-btn active" onclick="showSurvey(1)">S1</button>
+            <button class="tab-btn" onclick="showSurvey(2)">S2</button>
+            <button class="tab-btn" onclick="showSurvey(3)">S3</button>
+            </div>
+
+        <div class="question-list" id="questionContainer">
+            <div class="q-item">
+                <span class="q-label">Question 1: Leadership</span>
+                <span class="q-score pill-high">9/10</span>
+            </div>
+            </div>
+        
+        <div class="drawer-chart">
+            <canvas id="individualRadarChart"></canvas>
+        </div>
+    </div>
+</div>

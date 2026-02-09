@@ -1,25 +1,50 @@
+<div class="table-responsive" style="overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; background: white;">
+    <table class="table" style="width: 100%; border-collapse: collapse; min-width: 1200px;">
+        <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 16px; text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; left: 0; background: #f8fafc; z-index: 10; width: 40px;">#</th>
+                <th style="padding: 16px; text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; left: 40px; background: #f8fafc; z-index: 10;">Client Name</th>
+                <th style="padding: 16px; text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Contact</th>
+                <th style="padding: 16px; text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Email</th>
+                <th style="padding: 16px; text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">ID Number</th>
+                <th style="padding: 16px; text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Survey Progress</th>
+                <th style="padding: 16px; text-align: right; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Tier</th>
+            </tr>
+        </thead>
 
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>ID Number</th>
-      <th>Email</th>
-      <th>Survey Completed</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Jane Doe</td>
-      <td>9001015009087</td>
-      <td>jane@example.com</td>
-      <td><span class="badge badge-yes">Yes</span></td>
-    </tr>
-    <tr>
-      <td>John Smith</td>
-      <td>8805056009082</td>
-      <td>john@example.com</td>
-      <td><span class="badge badge-no">No</span></td>
-    </tr>
-  </tbody>
-</table>
+        <tbody>
+            {% for row in rows %}
+            <tr onclick='openCandidateProfile("{{ row.email }}", "{{ row.client }}")' 
+                style="border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: 0.2s; background: white;"
+                onmouseover="this.style.background='#fff1f1'" onmouseout="this.style.background='white'">
+                
+                <td style="padding: 16px; color: #94a3b8; position: sticky; left: 0; background: inherit; font-size: 0.85rem;">{{ loop.index }}</td>
+                <td style="padding: 16px; font-weight: 700; color: #1e293b; position: sticky; left: 40px; background: inherit;">{{ row.client }}</td>
+                <td style="padding: 16px; font-size: 0.9rem; color: #334155;">{{ row.primary_contact }}</td>
+                <td style="padding: 16px; color: #ef4444; font-size: 0.85rem; font-weight: 500;">{{ row.email }}</td>
+                <td style="padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #64748b;">{{ row.id_number }}</td>
+                
+                <td style="padding: 16px;">
+                    <div class="survey-dots" style="display: flex; gap: 6px; justify-content: center;">
+                        {% for i in range(1, 7) %}
+                            {% set is_done = row.completed_surveys and i in row.completed_surveys %}
+                            <span style="width: 10px; height: 10px; border-radius: 50%; 
+                                         background: {{ '#ef4444' if is_done else '#e2e8f0' }};
+                                         border: 1px solid {{ '#dc2626' if is_done else '#cbd5e1' }};
+                                         display: inline-block;"
+                                  title="Session {{ i }}: {{ 'Completed' if is_done else 'Pending' }}">
+                            </span>
+                        {% endfor %}
+                    </div>
+                </td>
+
+                <td style="padding: 16px; text-align: right;">
+                    <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; border: 1px solid #e2e8f0;">
+                        {{ row.tier if row.tier else 'Standard' }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

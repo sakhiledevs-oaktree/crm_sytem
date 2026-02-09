@@ -146,40 +146,29 @@ def dashboard():
     conn = psycopg2.connect(NEON_DATABASE_URL)
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    if cohort == "Guest":
-        query = """
-            SELECT 
-                respondent_email as email,
-                respondent_email as client,
-                cohort_tag as cohort,
-                COALESCE(ARRAY_AGG(survey_number) FILTER (WHERE survey_number IS NOT NULL), '{}') as completed_surveys
-            FROM survey_submissions 
-            WHERE respondent_email LIKE 'guest_%%'
-            GROUP BY respondent_email, cohort_tag
-        """
-        cur.execute(query)
-    else:
-        query = """
-            SELECT 
-                c.*, 
-                COALESCE(ARRAY_AGG(s.survey_number) FILTER (WHERE s.survey_number IS NOT NULL), '{}') as completed_surveys
-            FROM cohort_candidates c
-            LEFT JOIN survey_submissions s ON LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email))
-            WHERE (%s = 'All' OR c.cohort = %s)
-            GROUP BY c.id 
-            ORDER BY c.client ASC
-        """
-        cur.execute(query, (cohort, cohort))
-
+    # 1. UNIFIED QUERY
+    # This now handles 'All', 'Monday', 'Tuesday', etc., AND 'Guest' 
+    # because guests are now saved in cohort_candidates table.
+    query = """
+        SELECT 
+            c.*, 
+            COALESCE(ARRAY_AGG(s.survey_number) FILTER (WHERE s.survey_number IS NOT NULL), '{}') as completed_surveys
+        FROM cohort_candidates c
+        LEFT JOIN survey_submissions s ON LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email))
+        WHERE (%s = 'All' OR c.cohort = %s)
+        GROUP BY c.id 
+        ORDER BY c.client ASC
+    """
+    cur.execute(query, (cohort, cohort))
     rows = cur.fetchall()
 
-    # 2. CALCULATE ATTENDANCE TREND & SENTIMENT AVERAGES (If a specific cohort is selected)
+    # 2. CALCULATE ANALYTICS
     attendance_trend = [0] * 6
     avg_stats = {"q1": 0, "q2": 0, "q3": 0, "q4": 0}
     recent_comments = []
 
     if cohort != "All":
-        # Get counts for Attendance Trend
+        # Get counts for Attendance Trend (Works for Monday, Guest, etc.)
         cur.execute("""
             SELECT survey_number, COUNT(*) 
             FROM survey_submissions 
@@ -199,7 +188,7 @@ def dashboard():
             avg_stats = {"q1": round(stat_row[0], 1), "q2": round(stat_row[1], 1), 
                          "q3": round(stat_row[2], 1), "q4": round(stat_row[3], 1)}
 
-        # Get Recent Key Learnings for the "Pulse Feed"
+        # Get Recent Key Learnings
         cur.execute("""
             SELECT key_learnings, apply_plan FROM survey_submissions 
             WHERE cohort_tag = %s ORDER BY submitted_at DESC LIMIT 5
@@ -208,8 +197,7 @@ def dashboard():
     
     cur.close(); conn.close()
     return render_template("dashboard.html", rows=rows, cohort=cohort, 
-                           attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)
-# ==========================
+                           attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)# ==========================
 # UPLOAD COHORT FILE
 # ==========================
 
@@ -314,62 +302,75 @@ def upload(cohort_context):
 
     return redirect(url_for("dashboard", cohort=cohort_context))
 
-
 @app.route('/survey/<cohort>/<session_id>', methods=['GET', 'POST'])
 def handle_survey(cohort, session_id):
-    # 1. Connect to DB
     conn = psycopg2.connect(NEON_DATABASE_URL)
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     if request.method == 'POST':
-        # Clean the input email (remove spaces and lowercase it)
-        email = request.form.get('email', '').strip().lower()
-        
-        # 2. FUZZY DATABASE CHECK
-        # We use TRIM and LOWER on the DB column to ensure a match even if Excel had spaces
-        cur.execute("SELECT email FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
-        candidate = cur.fetchone()
-        
-        if not candidate:
-            cur.close(); conn.close()
-            # Return the template with the error and the variables so the header isn't blank
-            return render_template('survey_entry.html', 
-                                 cohort=cohort, 
-                                 session=session_id, 
-                                 error="Email not recognized. Please check your spelling or use your registered email.")
+        step = request.form.get('step')
 
-        # 3. Save Survey Data
-        try:
-            cur.execute("""
-                INSERT INTO survey_submissions (
-                    respondent_email, survey_number, cohort_tag,
-                    q1, q2, q3, q4, apply_plan, key_learnings
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                email, 
-                session_id.lower().replace('s', ''), # Converts 's6' to '6'
-                cohort.strip().capitalize(),         # Ensures 'monday' becomes 'Monday'
-                request.form.get('quality'),
-                request.form.get('relevance'),
-                request.form.get('confidence', 5),   # Default value if hidden
-                request.form.get('utility', 5),      # Default value if hidden
-                request.form.get('apply_plan'),
-                request.form.get('key_learnings')
-            ))
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            return f"Database Error: {str(e)}", 500
-        finally:
-            cur.close(); conn.close()
-        
-        # 4. Redirect to download page
-        return render_template('download_deck.html', cohort=cohort, session=session_id)
+        if step == '1':
+            email = request.form.get('email', '').strip().lower()
+            name = request.form.get('name', '').strip()
+            phone = request.form.get('phone', '').strip()
+            
+            cur.execute("SELECT client, email FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
+            candidate = cur.fetchone()
+            
+            # If guest, prepare data to be inserted later
+            user_data = {
+                "client": candidate['client'] if candidate else name,
+                "email": email,
+                "phone": phone
+            }
+            is_guest = False if candidate else True
 
-    # GET Request: Make sure variables are passed so the header is populated
+            cur.close(); conn.close()
+            return render_template('survey_entry.html', cohort=cohort, session=session_id, 
+                                 step=2, user=user_data, is_guest=is_guest)
+
+        elif step == '2':
+            email = request.form.get('verified_email', '').strip().lower()
+            client_name = request.form.get('verified_name', '').strip()
+            phone = request.form.get('verified_phone', '').strip()
+
+            # 1. Check if we need to 'Register' this guest in the candidates table
+            cur.execute("SELECT cohort FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
+            candidate = cur.fetchone()
+            
+            if not candidate:
+                assigned_tag = "Guest"
+                cur.execute("""
+                    INSERT INTO cohort_candidates (cohort, client, email, phone, id_number)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """, (assigned_tag, client_name, email, phone, f"GUEST-{email}"))
+            else:
+                assigned_tag = candidate['cohort']
+
+            # 2. Save Survey
+            try:
+                cur.execute("""
+                    INSERT INTO survey_submissions (
+                        respondent_email, survey_number, cohort_tag,
+                        q1, q2, q3, q4, apply_plan, key_learnings
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    email, session_id.lower().replace('s', ''), assigned_tag,
+                    request.form.get('quality'), request.form.get('relevance'), 5, 5,
+                    request.form.get('apply_plan'), request.form.get('key_learnings')
+                ))
+                conn.commit()
+            finally:
+                cur.close(); conn.close()
+            
+            return render_template('download_deck.html', cohort=cohort, session=session_id)
+
     cur.close(); conn.close()
-    return render_template('survey_entry.html', cohort=cohort, session=session_id)
-    
+    return render_template('survey_entry.html', cohort=cohort, session=session_id, step=1, user=None, is_guest=True)
+
+ 
 @app.route("/clear/<cohort>")
 def clear_cohort(cohort):
     conn = psycopg2.connect(NEON_DATABASE_URL)
@@ -446,7 +447,7 @@ if __name__ == "__main__":
     # 2. RUN the app (it will delete the table and start). 
     # 3. STOP the app and COMMENT the line out again.
     
-    reset_db_once() 
+    # reset_db_once() 
     
     init_db()
     seed_dummy_data()

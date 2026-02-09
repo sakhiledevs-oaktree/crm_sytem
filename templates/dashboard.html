@@ -7,17 +7,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
-        /* Specific tweaks to match the visual image provided */
+        /* Visual refinements and Guest specific styling */
         .chart-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 15px; font-weight: 700; }
         .feed-item { padding: 12px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
         .feed-item:hover { background: #f8fafc; }
         .s-tab.active { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
         .progress-bg { background: #f1f5f9; height: 8px; border-radius: 10px; overflow: hidden; margin-top: 4px; }
         .progress-fill { height: 100%; transition: width 0.5s ease-in-out; }
-        /* Add this to your <style> block in dashboard.html */
         .table-responsive { position: relative; }
         .survey-dots span { transition: transform 0.2s; }
         .survey-dots span:hover { transform: scale(1.3); cursor: help; }
+        .dot.guest { background: #64748b; }
+        .nav-btn.active .dot.guest { background: #fff; }
     </style>
 </head>
 <body class="app-bg">
@@ -32,12 +33,15 @@
                   <span class="dot {{ d|lower }}"></span> {{ d }}
               </a>
             {% endfor %}
+            <a class="nav-btn {% if cohort == 'Guest' %}active{% endif %}" href="/?cohort=Guest" style="border-left: 1px solid #e2e8f0; margin-left: 10px; padding-left: 15px;">
+                <span class="dot guest"></span> Guests
+            </a>
         </div>
         <div class="nav-right">
-            <form method="POST" action="/upload/All" enctype="multipart/form-data" id="masterUploadForm">
+            <form method="POST" action="/upload/{{ cohort }}" enctype="multipart/form-data" id="masterUploadForm">
                 <input type="file" name="file" id="masterFile" hidden accept=".csv, .xlsx, .xls" onchange="this.form.submit()">
                 <label for="masterFile" class="import-trigger">
-                    <span class="icon">↑</span> Import Master List
+                    <span class="icon">↑</span> Import List
                 </label>
             </form>
         </div>
@@ -177,10 +181,11 @@ function closeDrawer() {
 
 async function fetchSurvey(num) {
     document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
-    document.getElementById(`tab-s${num}`).classList.add('active');
+    const tab = document.getElementById(`tab-s${num}`);
+    if(tab) tab.classList.add('active');
 
     try {
-        const response = await fetch(`/api/surveys/${currentEmail}/${num}`);
+        const response = await fetch(`/api/surveys/${encodeURIComponent(currentEmail)}/${num}`);
         const data = await response.json();
         renderIndividualScores(data.scores, data.feedback);
     } catch (e) {
@@ -203,14 +208,14 @@ function renderIndividualScores(scores, feedback) {
         </div>
     `).join('');
 
-    if (feedback) {
+    if (feedback && feedback.key_learnings) {
         html += `
             <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
                 <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Key Learnings</h4>
                 <p style="font-size: 0.85rem; color: #1e293b; margin-bottom: 15px; font-style: italic;">"${feedback.key_learnings}"</p>
                 
                 <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Application Plan</h4>
-                <p style="font-size: 0.85rem; color: #1e293b;">${feedback.apply_plan}</p>
+                <p style="font-size: 0.85rem; color: #1e293b;">${feedback.apply_plan || 'No plan provided'}</p>
             </div>
         `;
     } else {
@@ -230,9 +235,9 @@ function copySurveyLink(cohort, session) {
 
 {% if cohort != 'All' %}
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Attendance Tracker (Line)
+    // 1. Attendance Tracker
     new ApexCharts(document.querySelector("#attendanceTrendChart"), {
-        series: [{ name: 'Participants', data: {{ attendance_trend|tojson }} }],
+        series: [{ name: 'Participants', data: {{ attendance_trend|tojson if attendance_trend else [0,0,0,0,0,0] }} }],
         chart: { type: 'area', height: 180, toolbar: {show: false} },
         colors: ['#ef4444'],
         stroke: { curve: 'smooth', width: 2 },
@@ -240,11 +245,16 @@ document.addEventListener('DOMContentLoaded', function() {
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05 } }
     }).render();
 
-    // 2. Sentiment Radar (Averages)
+    // 2. Sentiment Radar
     new ApexCharts(document.querySelector("#sentimentRadarChart"), {
         series: [{
             name: 'Avg Score',
-            data: [{{ stats.q1 }}, {{ stats.q2 }}, {{ stats.q3 }}, {{ stats.q4 }}]
+            data: [
+                {{ stats.q1 if stats.q1 else 0 }}, 
+                {{ stats.q2 if stats.q2 else 0 }}, 
+                {{ stats.q3 if stats.q3 else 0 }}, 
+                {{ stats.q4 if stats.q4 else 0 }}
+            ]
         }],
         chart: { type: 'radar', height: 180, toolbar: {show: false} },
         xaxis: { categories: ['Quality', 'Relevance', 'Confidence', 'Utility'] },
@@ -252,11 +262,11 @@ document.addEventListener('DOMContentLoaded', function() {
         yaxis: { max: 5, show: false }
     }).render();
 
-    // 3. Response Gauge (Donut)
-    const total = {{ rows|length }};
-    const completed = {{ attendance_trend|sum }} / 6; // Average completion across all 6 slots
+    // 3. Response Gauge
+    const totalCount = {{ rows|length if rows else 1 }};
+    const completedCount = {{ (attendance_trend|sum / 6)|round|int if attendance_trend else 0 }};
     new ApexCharts(document.querySelector("#responseGaugeChart"), {
-        series: [Math.round(completed), Math.max(0, total - Math.round(completed))],
+        series: [completedCount, Math.max(0, totalCount - completedCount)],
         chart: { type: 'donut', height: 180 },
         labels: ['Active', 'Inactive'],
         colors: ['#ef4444', '#f1f5f9'],

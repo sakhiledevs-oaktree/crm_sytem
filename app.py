@@ -93,6 +93,17 @@ class User(UserMixin):
         self.id = id
         self.username = username
 
+from psycopg2 import pool
+
+# Create a global pool (min 1 connection, max 10)
+db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, NEON_DATABASE_URL)
+
+def get_db():
+    return db_pool.getconn()
+
+def release_db(conn):
+    db_pool.putconn(conn)
+
 @login_manager.user_loader
 def load_user(user_id):
     conn = psycopg2.connect(NEON_DATABASE_URL)

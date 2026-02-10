@@ -52,8 +52,7 @@
 
         <tbody>
             {% for row in rows %}
-            <tr onclick='openCandidateProfile("{{ row.email }}", "{{ row.client }}")' 
-                class="table-row" style="cursor: pointer;">
+            <tr class="table-row">
                 
                 <td style="padding: 16px; color: #94a3b8; position: sticky; left: 0; background: white; z-index: 10; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">{{ loop.index }}</td>
                 
@@ -78,7 +77,8 @@
                 
                 <td style="padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #64748b; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">{{ row.id_number }}</td>
                 
-                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
+                <td onclick='openCandidateProfile("{{ row.email }}", "{{ row.client }}")'
+                    style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; cursor: pointer;">
                     <div style="display: flex; gap: 4px; justify-content: center;">
                         {% for i in range(1, 7) %}
                             {% set is_done = row.completed_surveys and i in row.completed_surveys %}
@@ -92,26 +92,35 @@
                         {{ row.tier if row.tier else 'STANDARD' }}
                     </span>
                 </td>
-                <!-- <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">WhatsApp</th> -->
 
-                <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
+                <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9; white-space: nowrap;" onclick="event.stopPropagation()">
                     <button onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}')" 
                         style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer;">
                         SEND
                     </button>
                 </td>
-                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
-                <input type="text" 
-                    value="{{ row.admin_notes if row.admin_notes else '' }}" 
-                    placeholder="Add note..."
-                    onchange="saveComment('{{ row.id_number }}', this.value)"
-                    style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; width: 250px; outline: none; transition: 0.2s;"
-                    onfocus="this.style.borderColor='#2563eb'"
-                    onblur="this.style.borderColor='#e2e8f0'">
-            </td>
+
+                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;" onclick="event.stopPropagation()">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="text" 
+                            id="comment-{{ row.id_number }}"
+                            value="{{ row.admin_notes if row.admin_notes else '' }}" 
+                            placeholder="Add note..."
+                            style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; width: 220px; outline: none; transition: 0.2s;"
+                            onfocus="this.style.borderColor='#2563eb'"
+                            onblur="this.style.borderColor='#e2e8f0'">
+                        
+                        <button onclick="saveComment('{{ row.id_number }}', document.getElementById('comment-{{ row.id_number }}').value, this)" 
+                            style="background: #2563eb; color: white; border: none; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink: 0;"
+                            title="Save Comment">
+                            <svg style="width: 14px; height: 14px; fill: none; stroke: white; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </td>
                 
             </tr>
-
             {% endfor %}
         </tbody>
     </table>

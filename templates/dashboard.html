@@ -150,7 +150,11 @@ function sendWhatsApp(phone, name) {
     let finalMsg = encodeURIComponent(template.replace(/{name}/g, name));
     window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${finalMsg}`, '_blank');
 }
-function saveComment(idNumber, text) {
+function saveComment(idNumber, text, btnElement) {
+    // Immediate visual feedback: change button to loading state
+    const originalBg = btnElement.style.background;
+    const originalSvg = btnElement.innerHTML;
+    
     fetch('/update_comment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,10 +163,21 @@ function saveComment(idNumber, text) {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            console.log('Comment saved for ' + idNumber);
+            // Success Feedback: Turn Green
+            btnElement.style.background = "#10b981"; 
+            setTimeout(() => {
+                btnElement.style.background = originalBg;
+            }, 1000);
         } else {
-            alert('Error saving comment');
+            // Error Feedback: Turn Red
+            btnElement.style.background = "#ef4444";
+            alert('Error saving comment: ' + data.message);
+            setTimeout(() => { btnElement.style.background = originalBg; }, 2000);
         }
+    })
+    .catch(err => {
+        btnElement.style.background = "#ef4444";
+        console.error('Save failed:', err);
     });
 }
 </script>

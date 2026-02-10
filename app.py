@@ -291,10 +291,6 @@ def dashboard():
     cur.close(); conn.close()
     return render_template("dashboard.html", rows=rows, cohort=cohort, 
                            attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)
-# ==========================
-# UPLOAD COHORT FILE
-# ==========================
-
 
 
 def get_clean_row_val(row_dict, possible_names):
@@ -318,6 +314,7 @@ def get_clean_row_val(row_dict, possible_names):
                     pass
             return s
     return ""
+
 @app.route("/upload/<cohort_context>", methods=["POST"])
 def upload(cohort_context):
     file = request.files.get("file")
@@ -335,62 +332,63 @@ def upload(cohort_context):
         else:
             df = pd.read_excel(file, engine="openpyxl", dtype=str)
 
-        # 2. CLEAN COLUMN NAMES
         df.columns = [str(c).strip().lower() for c in df.columns]
-        
-        # 3. FIX SCIENTIFIC NOTATION & FLOAT FORMATTING FOR ID NUMBERS
-        # Identify the ID column dynamically
         id_col_name = next((c for c in df.columns if 'id' in c), None)
         
-        if id_col_name:
-            def clean_id(val):
-                val = str(val).strip()
-                if not val or val.lower() == 'nan':
-                    return None
-                # Convert scientific '1.23e+12' to full string '1234567890123'
-                if 'e+' in val.lower():
-                    try:
-                        val = '{:.0f}'.format(float(val))
-                    except:
-                        pass
-                # Remove trailing '.0' (common when reading Excel integers)
-                if val.endswith('.0'):
-                    val = val[:-2]
-                return val
+        # 2. CLEANING FUNCTIONS
+        def clean_id(val):
+            val = str(val).strip()
+            if not val or val.lower() in ['nan', 'none', 'null', '']:
+                return None
+            if 'e+' in val.lower():
+                try: val = '{:.0f}'.format(float(val))
+                except: pass
+            if val.endswith('.0'):
+                val = val[:-2]
+            return val
 
+        if id_col_name:
             df[id_col_name] = df[id_col_name].apply(clean_id)
 
         df = df.dropna(how='all')
-        data_to_insert = []
+        
+        with_ids = []
+        no_ids = []
 
+        # 3. SORT DATA INTO BATCHES
         for _, row in df.iterrows():
             row_dict = row.to_dict()
-
-            # A. COHORT MAPPING
-            raw_source = get_clean_row_val(row_dict, ["source"])
-            digit_match = re.search(r'\d', str(raw_source))
-            m_digit = digit_match.group(0) if digit_match else None
-            assigned_day = MENTORSHIP_MAP.get(m_digit, "Unassigned")
-
-            # B. GET CLEANED ID
+            
+            # Skip only if it's the literal header text
             id_num = row_dict.get(id_col_name)
-            if not id_num or str(id_num).lower() == "id number":
+            if str(id_num).lower() == "id number":
                 continue
 
-            data_to_insert.append((
+            raw_source = get_clean_row_val(row_dict, ["source"])
+            digit_match = re.search(r'\d', str(raw_source))
+            assigned_day = MENTORSHIP_MAP.get(digit_match.group(0) if digit_match else None, "Unassigned")
+
+            record = (
                 assigned_day,
                 get_clean_row_val(row_dict, ["client"]),
                 get_clean_row_val(row_dict, ["primary contact", "primary cont", "contact person"]),
                 get_clean_row_val(row_dict, ["email"]),
                 get_clean_row_val(row_dict, ["phone", "cell", "contact number"]),
-                id_num,
+                id_num, # Might be None
                 get_clean_row_val(row_dict, ["cipc number", "cipc"]),
                 get_clean_row_val(row_dict, ["tier"]),
                 raw_source,
                 get_clean_row_val(row_dict, ["contactability", "comment", "comments"])
-            ))
+            )
 
-        if data_to_insert:
+            if id_num:
+                with_ids.append(record)
+            else:
+                no_ids.append(record)
+
+        # 4. EXECUTE DATABASE OPS
+        # Batch 1: Upsert records with IDs
+        if with_ids:
             execute_values(cur, """
                 INSERT INTO cohort_candidates (
                     cohort, client, primary_contact, email, phone, 
@@ -403,10 +401,19 @@ def upload(cohort_context):
                     phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
                     tier = EXCLUDED.tier,
                     comment = COALESCE(cohort_candidates.comment, EXCLUDED.comment)
-            """, data_to_insert)
+            """, with_ids)
+
+        # Batch 2: Plain insert for records without IDs
+        if no_ids:
+            execute_values(cur, """
+                INSERT INTO cohort_candidates (
+                    cohort, client, primary_contact, email, phone, 
+                    id_number, cipc_number, tier, source, comment
+                ) VALUES %s
+            """, no_ids)
 
         conn.commit()
-        flash(f"Sync Complete: {len(data_to_insert)} records processed.")
+        flash(f"Sync Complete: {len(with_ids) + len(no_ids)} records processed.")
 
     except Exception as e:
         conn.rollback()
@@ -547,7 +554,7 @@ def update_comment():
         return {"status": "error", "message": str(e)}, 500
     finally:
         cur.close(); conn.close()
-        
+
 if __name__ == "__main__":    
     init_db()
     app.run(debug=True)

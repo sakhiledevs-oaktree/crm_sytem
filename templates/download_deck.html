@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Success — Download Resources</title>
+    <title>Thank You</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -73,53 +73,6 @@
             font-size: 1.05rem;
         }
 
-        .download-zone {
-            background: var(--bg);
-            border: 1.5px solid #e2e8f0;
-            border-radius: 24px;
-            padding: 24px;
-            transition: all 0.3s ease;
-        }
-
-        .download-zone:hover {
-            border-color: var(--accent);
-            background: #ffffff;
-            box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.1);
-        }
-
-        .file-label {
-            display: block;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 700;
-            color: var(--text-muted);
-            margin-bottom: 12px;
-        }
-
-        .btn-download {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            background: var(--primary);
-            color: white;
-            text-decoration: none;
-            padding: 16px 24px;
-            border-radius: 16px;
-            font-weight: 600;
-            transition: transform 0.2s ease, background 0.2s ease;
-        }
-
-        .btn-download:hover {
-            background: #000;
-            transform: translateY(-2px);
-        }
-
-        .btn-download:active {
-            transform: translateY(0);
-        }
-
         .footer-meta {
             margin-top: 32px;
             padding-top: 24px;
@@ -166,25 +119,18 @@
     <div class="success-container">
         <div class="glass-card">
             <div class="icon-wrap">✓</div>
-            
-            <h1>Success!</h1>
-            <p class="subtitle">
-                Your feedback for <strong>{{ session|upper }}</strong> has been safely recorded.
-            </p>
 
-            <div class="download-zone">
-                <span class="file-label">Available Resource</span>
-                <a href="{{ url_for('static', filename='decks/' + cohort.lower() + '/' + session.upper() + '.pptx') }}" 
-                   download="{{ session.upper() }}.pptx" 
-                   class="btn-download">
-                    <span>Download Deck</span>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                </a>
-            </div>
+            <h1>Thank You!</h1>
+            <p class="subtitle">
+                Your feedback for <strong>{{ session|upper }}</strong> has been successfully received.<br>
+                The slides will be emailed to you.
+            </p>
 
             <div class="footer-meta">
                 <p class="meta-text">Verified: <strong>{{ email }}</strong></p>
-                <p class="meta-text" style="opacity: 0.7; font-size: 0.75rem;">Cohort: {{ cohort|capitalize }}</p>
+                <p class="meta-text" style="opacity: 0.7; font-size: 0.75rem;">
+                    Cohort: {{ cohort|capitalize }}
+                </p>
             </div>
 
             <a href="/" class="back-link">

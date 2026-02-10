@@ -4,13 +4,31 @@ import pandas as pd
 import psycopg2
 import psycopg2.extras
 from flask import Flask, render_template, request, redirect, jsonify, url_for, flash, send_from_directory
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from psycopg2.extras import execute_values
 from io import StringIO
+from psycopg2.pool import ThreadedConnectionPool
+
+
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-key"
 
 NEON_DATABASE_URL = 'postgresql://neondb_owner:npg_J0LaKIwNbX3o@ep-frosty-hat-ahg0tukc-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+
+from psycopg2 import pool
+
+# Create a global pool (min 1 connection, max 10)
+db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, NEON_DATABASE_URL)
+
+
+db_pool = ThreadedConnectionPool(1, 10, NEON_DATABASE_URL)
+
+def get_db_connection():
+    return db_pool.getconn()
+
+def put_db_connection(conn):
+    db_pool.putconn(conn)
 
 # 1. MAPPING LOGIC: Converts "Mentorship X" to the correct Day
 MENTORSHIP_MAP = {
@@ -19,6 +37,11 @@ MENTORSHIP_MAP = {
     "3": "Wednesday",
     "4": "Thursday"
 }
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login" # Redirects here if user isn't logged in
+
 def init_db():
     conn = psycopg2.connect(NEON_DATABASE_URL)
     cur = conn.cursor()
@@ -79,24 +102,14 @@ def init_db():
     conn.close()
     print("Database initialized successfully.")
 # ==========================
-# FILE LOADER (CSV + EXCEL)
+# FILE LOADER (CSV + EXCEL)#
 # ==========================
-
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login" # Redirects here if user isn't logged in
 
 class User(UserMixin):
     def __init__(self, id, username):
         self.id = id
         self.username = username
 
-from psycopg2 import pool
-
-# Create a global pool (min 1 connection, max 10)
-db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, NEON_DATABASE_URL)
 
 def get_db():
     return db_pool.getconn()
@@ -116,7 +129,7 @@ def load_user(user_id):
     return None
 
 # ==========================
-# LOGIN ROUTES
+# LOGIN ROUTES             #
 # ==========================
 
 @app.route("/login", methods=["GET", "POST"])
@@ -158,19 +171,17 @@ def load_tabular_file(file):
     else:
         raise ValueError("Unsupported file format")
 
-#     return render_template("dashboard.html", cohort=cohort, rows=rows)
 @app.route("/api/surveys/<path:email>/<int:num>")
 def get_survey_details(email, num):
     conn = psycopg2.connect(NEON_DATABASE_URL)
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    # Force lowercase on the email parameter
     clean_email = email.lower().strip()
     
     try:
-        # Use LOWER() in the SQL to ensure a perfect match
+        # Only select the 2 columns we are now using
         cur.execute("""
-            SELECT q1, q2, q3, q4, apply_plan, key_learnings 
+            SELECT q1, q2, apply_plan, key_learnings 
             FROM survey_submissions 
             WHERE LOWER(respondent_email) = %s 
             AND survey_number = %s
@@ -180,22 +191,21 @@ def get_survey_details(email, num):
         
         if res:
             return jsonify({
-                "scores": [res['q1'], res['q2'], res['q3'], res['q4']],
+                "scores": [res['q1'], res['q2']], # Only 2 values sent to JS
                 "feedback": {
                     "apply_plan": res['apply_plan'],
                     "key_learnings": res['key_learnings']
                 }
             })
         
-        # Return empty data if not found, but with a 200 status so the JS doesn't error
-        return jsonify({"scores": [0,0,0,0], "feedback": None}), 200
+        return jsonify({"scores": [0,0], "feedback": None}), 200
             
     except Exception as e:
         print(f"API Error: {e}")
         return jsonify({"error": "Server error"}), 500
     finally:
         cur.close(); conn.close()
-        
+                
 @app.route("/api/cohort_analysis/<cohort_name>")
 def cohort_analysis(cohort_name):
     conn = psycopg2.connect(NEON_DATABASE_URL)
@@ -277,7 +287,9 @@ def dashboard():
     
     cur.close(); conn.close()
     return render_template("dashboard.html", rows=rows, cohort=cohort, 
-                           attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)# ==========================
+                           attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)
+
+# ==========================
 # UPLOAD COHORT FILE
 # ==========================
 
@@ -304,6 +316,7 @@ def get_clean_row_val(row_dict, possible_names):
                     pass
             return s
     return ""
+
 @app.route("/upload/<cohort_context>", methods=["POST"])
 def upload(cohort_context):
     file = request.files.get("file")
@@ -384,96 +397,87 @@ def upload(cohort_context):
 
 @app.route('/survey/<cohort>/<session_id>', methods=['GET', 'POST'])
 def handle_survey(cohort, session_id):
-    conn = psycopg2.connect(NEON_DATABASE_URL)
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    # 1. Get a connection from the pool
+    conn = db_pool.getconn()
+    try:
+        if request.method == 'POST':
+            step = request.form.get('step')
 
-    if request.method == 'POST':
-        step = request.form.get('step')
+            # --- STEP 1: IDENTITY VERIFICATION ---
+            if step == '1':
+                email = request.form.get('email', '').strip().lower()
+                name = request.form.get('name', '').strip()
+                phone = request.form.get('phone', '').strip()
+                
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    cur.execute("SELECT client, email FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
+                    candidate = cur.fetchone()
+                
+                user_data = {
+                    "client": candidate['client'] if candidate else name,
+                    "email": email,
+                    "phone": phone
+                }
+                is_guest = False if candidate else True
+                
+                return render_template('survey_entry.html', cohort=cohort, session=session_id, 
+                                     step=2, user=user_data, is_guest=is_guest)
 
-        if step == '1':
-            email = request.form.get('email', '').strip().lower()
-            name = request.form.get('name', '').strip()
-            phone = request.form.get('phone', '').strip()
-            
-            cur.execute("SELECT client, email FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
-            candidate = cur.fetchone()
-            
-            # If guest, prepare data to be inserted later
-            user_data = {
-                "client": candidate['client'] if candidate else name,
-                "email": email,
-                "phone": phone
-            }
-            is_guest = False if candidate else True
+            # --- STEP 2: SAVE FEEDBACK ---
+            elif step == '2':
+                email = request.form.get('verified_email', '').strip().lower()
+                client_name = request.form.get('verified_name', '').strip()
+                phone = request.form.get('verified_phone', '').strip()
 
-            cur.close(); conn.close()
-            return render_template('survey_entry.html', cohort=cohort, session=session_id, 
-                                 step=2, user=user_data, is_guest=is_guest)
+                # Start a single transaction for both guest registration and survey submission
+                with conn:
+                    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                        # A. Check if they are a registered member or guest
+                        cur.execute("SELECT cohort FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
+                        candidate = cur.fetchone()
+                        
+                        assigned_tag = candidate['cohort'] if candidate else "Guest"
+                        
+                        # B. Register Guest if not found in candidate list
+                        if not candidate:
+                            cur.execute("""
+                                INSERT INTO cohort_candidates (cohort, client, email, phone, id_number)
+                                VALUES (%s, %s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING
+                            """, (assigned_tag, client_name, email, phone, f"GUEST-{email}"))
 
-        elif step == '2':
-            email = request.form.get('verified_email', '').strip().lower()
-            client_name = request.form.get('verified_name', '').strip()
-            phone = request.form.get('verified_phone', '').strip()
+                        # C. Save Survey (Matches your 2-rating form)
+                        # We use exactly 7 columns and 7 values to avoid the 'tuple index' error.
+                        cur.execute("""
+                            INSERT INTO survey_submissions (
+                                respondent_email, survey_number, cohort_tag,
+                                q1, q2, apply_plan, key_learnings
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            email,                                       # 1
+                            session_id.lower().replace('s', ''),         # 2
+                            assigned_tag,                                # 3
+                            request.form.get('quality'),                 # 4
+                            request.form.get('relevance'),               # 5
+                            request.form.get('apply_plan'),              # 6
+                            request.form.get('key_learnings')             # 7
+                        ))
+                
+                # If everything succeeds, show the download page
+                return render_template('download_deck.html', cohort=cohort, session=session_id)
 
-            # 1. Check if we need to 'Register' this guest in the candidates table
-            cur.execute("SELECT cohort FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
-            candidate = cur.fetchone()
-            
-            if not candidate:
-                assigned_tag = "Guest"
-                cur.execute("""
-                    INSERT INTO cohort_candidates (cohort, client, email, phone, id_number)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT DO NOTHING
-                """, (assigned_tag, client_name, email, phone, f"GUEST-{email}"))
-            else:
-                assigned_tag = candidate['cohort']
+    except Exception as e:
+        # Logs the error to your console so you can see why it failed
+        print(f"Database Error: {e}")
+        flash("A database error occurred. Please refresh the page and try again.")
+    
+    finally:
+        # ALWAYS release the connection back to the pool, even if it failed
+        db_pool.putconn(conn)
 
-            # 2. Save Survey
-            try:
-                cur.execute("""
-                    INSERT INTO survey_submissions (
-                        respondent_email, survey_number, cohort_tag,
-                        q1, q2, q3, q4, apply_plan, key_learnings
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    email, session_id.lower().replace('s', ''), assigned_tag,
-                    request.form.get('quality'), request.form.get('relevance'), 5, 5,
-                    request.form.get('apply_plan'), request.form.get('key_learnings')
-                ))
-                conn.commit()
-            finally:
-                cur.close(); conn.close()
-            
-            return render_template('download_deck.html', cohort=cohort, session=session_id)
-
-    cur.close(); conn.close()
+    # Default fallback to step 1
     return render_template('survey_entry.html', cohort=cohort, session=session_id, step=1, user=None, is_guest=True)
-
- 
-@app.route("/clear/<cohort>")
-def clear_cohort(cohort):
-    conn = psycopg2.connect(NEON_DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM cohort_candidates WHERE cohort = %s", (cohort,))
-    conn.commit()
-    cur.close()
-    conn.close()
-    flash(f"Cleared all records for {cohort}")
-    return redirect(url_for("dashboard", cohort=cohort))
-
-def reset_db_once():
-    conn = psycopg2.connect(NEON_DATABASE_URL)
-    cur = conn.cursor()
-    print("Dropping old tables to refresh schema...")
-    # Add the survey table to the drop list
-    cur.execute("DROP TABLE IF EXISTS cohort_candidates CASCADE;")
-    cur.execute("DROP TABLE IF EXISTS survey_submissions CASCADE;") 
-    conn.commit()
-    cur.close()
-    conn.close()
-    print("Tables dropped. Recreating with 'cohort_tag'...")
-
+    
 @app.route('/download/<cohort>/<session_id>')
 def download_deck(cohort, session_id):
     # Matches your folder names (e.g., 'monday')
@@ -497,12 +501,6 @@ def download_deck(cohort, session_id):
         return redirect(url_for('dashboard', cohort=cohort))
     
 
-if __name__ == "__main__":
-    # 1. UNCOMMENT the line below. 
-    # 2. RUN the app (it will delete the table and start). 
-    # 3. STOP the app and COMMENT the line out again.
-    
-    # reset_db_once() 
-    
+if __name__ == "__main__":    
     init_db()
     app.run(debug=True)

@@ -180,6 +180,7 @@ function closeDrawer() {
 }
 
 async function fetchSurvey(num) {
+    // UI update: clear old active tabs
     document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
     const tab = document.getElementById(`tab-s${num}`);
     if(tab) tab.classList.add('active');
@@ -187,15 +188,19 @@ async function fetchSurvey(num) {
     try {
         const response = await fetch(`/api/surveys/${encodeURIComponent(currentEmail)}/${num}`);
         const data = await response.json();
+        
+        // Pass the scores and the feedback object separately to the next function
         renderIndividualScores(data.scores, data.feedback);
     } catch (e) {
-        renderIndividualScores([0,0,0,0], null);
+        console.error("Fetch Error:", e);
+        renderIndividualScores([0, 0], null);
     }
 }
-
 function renderIndividualScores(scores, feedback) {
     const container = document.getElementById('questionsList');
-    const labels = ["Quality", "Relevance", "Confidence", "Utility"];
+    
+    // We only define two labels to match the two scores
+    const labels = ["Quality", "Relevance"];
     
     let html = labels.map((l, i) => `
         <div style="margin-bottom: 15px;">
@@ -208,6 +213,7 @@ function renderIndividualScores(scores, feedback) {
         </div>
     `).join('');
 
+    // Feedback section (Key Learnings / Plan)
     if (feedback && feedback.key_learnings) {
         html += `
             <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
@@ -252,16 +258,14 @@ document.addEventListener('DOMContentLoaded', function() {
             data: [
                 {{ stats.q1 if stats.q1 else 0 }}, 
                 {{ stats.q2 if stats.q2 else 0 }}, 
-                {{ stats.q3 if stats.q3 else 0 }}, 
-                {{ stats.q4 if stats.q4 else 0 }}
+                {{ stats.q3 if stats.q3 else 0 }}
             ]
         }],
         chart: { type: 'radar', height: 180, toolbar: {show: false} },
-        xaxis: { categories: ['Quality', 'Relevance', 'Confidence', 'Utility'] },
+        xaxis: { categories: ['Quality', 'Relevance'] },
         colors: ['#ef4444'],
         yaxis: { max: 5, show: false }
     }).render();
-
     // 3. Response Gauge
     const totalCount = {{ rows|length if rows else 1 }};
     const completedCount = {{ (attendance_trend|sum / 6)|round|int if attendance_trend else 0 }};

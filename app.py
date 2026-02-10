@@ -32,10 +32,10 @@ def put_db_connection(conn):
 
 # 1. MAPPING LOGIC: Converts "Mentorship X" to the correct Day
 MENTORSHIP_MAP = {
-    "1": "Monday",
-    "2": "Tuesday",
-    "3": "Wednesday",
-    "4": "Thursday"
+    "1": "monday",
+    "2": "tuesday",
+    "3": "wednesday",
+    "4": "thursday"
 }
 
 login_manager = LoginManager()
@@ -205,7 +205,7 @@ def get_survey_details(email, num):
         return jsonify({"error": "Server error"}), 500
     finally:
         cur.close(); conn.close()
-                
+
 @app.route("/api/cohort_analysis/<cohort_name>")
 def cohort_analysis(cohort_name):
     conn = psycopg2.connect(NEON_DATABASE_URL)
@@ -228,7 +228,6 @@ def cohort_analysis(cohort_name):
         "labels": ["Leadership", "Strategy", "Finance", "Marketing", "Operations", "Impact"],
         "averages": [float(x) if x else 0 for x in stats]
     })
-
 @app.route("/")
 @login_required
 def dashboard():
@@ -237,8 +236,6 @@ def dashboard():
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     # 1. UNIFIED QUERY
-    # This now handles 'All', 'Monday', 'Tuesday', etc., AND 'Guest' 
-    # because guests are now saved in cohort_candidates table.
     query = """
         SELECT 
             c.*, 
@@ -254,11 +251,12 @@ def dashboard():
 
     # 2. CALCULATE ANALYTICS
     attendance_trend = [0] * 6
-    avg_stats = {"q1": 0, "q2": 0, "q3": 0, "q4": 0}
+    # FIXED: Only q1 and q2 initialized
+    avg_stats = {"q1": 0, "q2": 0} 
     recent_comments = []
 
     if cohort != "All":
-        # Get counts for Attendance Trend (Works for Monday, Guest, etc.)
+        # Get counts for Attendance Trend
         cur.execute("""
             SELECT survey_number, COUNT(*) 
             FROM survey_submissions 
@@ -268,15 +266,20 @@ def dashboard():
             if 1 <= count_row[0] <= 6:
                 attendance_trend[count_row[0]-1] = count_row[1]
 
-        # Get Averages for the 4 Metrics
+        # FIXED: Only SELECT q1 and q2 averages
         cur.execute("""
-            SELECT AVG(q1), AVG(q2), AVG(q3), AVG(q4) 
+            SELECT AVG(q1), AVG(q2) 
             FROM survey_submissions WHERE cohort_tag = %s
         """, (cohort,))
+        
         stat_row = cur.fetchone()
+        
+        # FIXED: Safe rounding check to prevent NoneType errors
         if stat_row and stat_row[0] is not None:
-            avg_stats = {"q1": round(stat_row[0], 1), "q2": round(stat_row[1], 1), 
-                         "q3": round(stat_row[2], 1), "q4": round(stat_row[3], 1)}
+            avg_stats = {
+                "q1": round(stat_row[0], 1) if stat_row[0] else 0, 
+                "q2": round(stat_row[1], 1) if stat_row[1] else 0
+            }
 
         # Get Recent Key Learnings
         cur.execute("""
@@ -288,7 +291,6 @@ def dashboard():
     cur.close(); conn.close()
     return render_template("dashboard.html", rows=rows, cohort=cohort, 
                            attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)
-
 # ==========================
 # UPLOAD COHORT FILE
 # ==========================

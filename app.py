@@ -527,7 +527,27 @@ def download_deck(cohort, session_id):
         flash(f"Resource {filename} not found for {cohort}.")
         return redirect(url_for('dashboard', cohort=cohort))
     
+@app.route("/update_comment", methods=["POST"])
+def update_comment():
+    data = request.json
+    id_number = data.get("id_number")
+    comment_text = data.get("comment")
 
+    conn = psycopg2.connect(NEON_DATABASE_URL)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE cohort_candidates 
+            SET admin_notes = %s 
+            WHERE id_number = %s
+        """, (comment_text, id_number))
+        conn.commit()
+        return {"status": "success"}, 200
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 500
+    finally:
+        cur.close(); conn.close()
+        
 if __name__ == "__main__":    
     init_db()
     app.run(debug=True)

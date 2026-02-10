@@ -123,7 +123,49 @@
             {% endif %}
         </div>
     </div>
+<div style="margin-bottom: 25px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 10px;">
+        <div style="background: #25d366; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+            <svg style="width: 18px; fill: white;" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.588-5.946 0-6.556 5.332-11.891 11.891-11.891 3.181 0 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.231 3.481 8.403 0 6.556-5.332 11.891-11.891 11.891-2.007 0-3.982-.51-5.735-1.474l-6.259 1.692zm6.21-4.412l.348.206c1.517.899 3.256 1.373 5.042 1.373 5.309 0 9.631-4.322 9.631-9.631 0-2.573-1.001-4.991-2.82-6.81-1.817-1.817-4.234-2.817-6.81-2.817-5.31 0-9.632 4.322-9.632 9.631 0 1.936.582 3.823 1.684 5.438l.227.333-1.007 3.676 3.77-.999z"/></svg>
+        </div>
+        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #1e293b;">WhatsApp Automation Drafter</h3>
+    </div>
+    <textarea id="whatsappTemplate" 
+        style="width: 100%; height: 60px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 0.9rem; resize: none; outline: none;" 
+        placeholder="Hello {name}, ..."
+        oninput="localStorage.setItem('whatsapp_pretext', this.value)"></textarea>
+</div>
 
+<script>
+// Load saved message on boot
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('whatsappTemplate').value = localStorage.getItem('whatsapp_pretext') || "";
+});
+
+function sendWhatsApp(phone, name) {
+    let template = document.getElementById('whatsappTemplate').value;
+    if (!template) return alert("Type a message first!");
+    
+    let cleanPhone = phone.replace(/\D/g, '');
+    let finalMsg = encodeURIComponent(template.replace(/{name}/g, name));
+    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${finalMsg}`, '_blank');
+}
+function saveComment(idNumber, text) {
+    fetch('/update_comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_number: idNumber, comment: text })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            console.log('Comment saved for ' + idNumber);
+        } else {
+            alert('Error saving comment');
+        }
+    });
+}
+</script>
     <div class="data-card" style="padding: 20px; margin-bottom: 24px; border-left: 5px solid #ef4444;">
         <h3 class="chart-label" style="margin-bottom: 10px;">Session Distribution Tool</h3>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -142,6 +184,7 @@
         {% include "partials/client_table.html" %}
     </div>
 </div>
+
 
 <div id="sideDrawer" class="drawer">
     <div class="drawer-header" style="display: flex; align-items: center; gap: 16px; padding: 20px; border-bottom: 1px solid #f1f5f9;">

@@ -45,6 +45,8 @@
                     <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">ID Number</th>
                     <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Progress</th>
                     <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; text-align: right; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Tier</th>
+                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; text-align: right; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">WhatsApp</th>
+                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: left; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Admin Comments</th>
                 </tr>
             </thead>
 
@@ -90,7 +92,26 @@
                         {{ row.tier if row.tier else 'STANDARD' }}
                     </span>
                 </td>
+                <!-- <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">WhatsApp</th> -->
+
+                <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
+                    <button onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}')" 
+                        style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer;">
+                        SEND
+                    </button>
+                </td>
+                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
+                <input type="text" 
+                    value="{{ row.admin_notes if row.admin_notes else '' }}" 
+                    placeholder="Add note..."
+                    onchange="saveComment('{{ row.id_number }}', this.value)"
+                    style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; width: 250px; outline: none; transition: 0.2s;"
+                    onfocus="this.style.borderColor='#2563eb'"
+                    onblur="this.style.borderColor='#e2e8f0'">
+            </td>
+                
             </tr>
+
             {% endfor %}
         </tbody>
     </table>

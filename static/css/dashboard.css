@@ -271,3 +271,24 @@ input[type="text"], input[type="email"], textarea {
     .survey-card { padding: 25px 15px; }
     .drawer { width: 100%; right: -100%; }
 }
+
+.badge-updated {
+    background: #f3e8ff; /* Light purple background */
+    color: #7e22ce;      /* Dark purple text */
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-left: 10px;
+    border: 1px solid #d8b4fe;
+    display: inline-flex;
+    align-items: center;
+}
+
+
+/* Ensure emails are blue as requested */
+.email-blue {
+    color: #2563eb !important;
+    font-weight: 500;
+}

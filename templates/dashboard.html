@@ -19,6 +19,25 @@
         .survey-dots span:hover { transform: scale(1.3); cursor: help; }
         .dot.guest { background: #64748b; }
         .nav-btn.active .dot.guest { background: #fff; }
+        
+        /* New Purple Badge Styling for Enriched Data */
+        .badge-purple {
+            background: #f3e8ff; 
+            color: #7e22ce;      
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-left: 8px;
+            border: 1px solid #d8b4fe;
+            display: inline-flex;
+            align-items: center;
+            vertical-align: middle;
+        }
+
+        /* Hover effect for frozen columns */
+        .table-row:hover td { background-color: #fff1f1 !important; }
     </style>
 </head>
 <body class="app-bg">
@@ -95,7 +114,7 @@
                     <span style="font-size: 0.85rem; color: #1e293b;">"{{ c.key_learnings }}"</span>
                 </div>
                 <div style="margin-left: 70px; font-size: 0.75rem; color: #64748b; margin-top: 4px;">
-                    <strong>Plan:</strong> {{ c.apply_plan[:120] }}...
+                    <strong>Plan:</strong> {{ c.apply_plan[:120] if c.apply_plan else 'N/A' }}...
                 </div>
             </div>
             {% endfor %}
@@ -180,7 +199,6 @@ function closeDrawer() {
 }
 
 async function fetchSurvey(num) {
-    // UI update: clear old active tabs
     document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
     const tab = document.getElementById(`tab-s${num}`);
     if(tab) tab.classList.add('active');
@@ -188,18 +206,15 @@ async function fetchSurvey(num) {
     try {
         const response = await fetch(`/api/surveys/${encodeURIComponent(currentEmail)}/${num}`);
         const data = await response.json();
-        
-        // Pass the scores and the feedback object separately to the next function
         renderIndividualScores(data.scores, data.feedback);
     } catch (e) {
         console.error("Fetch Error:", e);
         renderIndividualScores([0, 0], null);
     }
 }
+
 function renderIndividualScores(scores, feedback) {
     const container = document.getElementById('questionsList');
-    
-    // We only define two labels to match the two scores
     const labels = ["Quality", "Relevance"];
     
     let html = labels.map((l, i) => `
@@ -213,8 +228,7 @@ function renderIndividualScores(scores, feedback) {
         </div>
     `).join('');
 
-    // Feedback section (Key Learnings / Plan)
-    if (feedback && feedback.key_learnings) {
+    if (feedback && feedback.key_learnings && feedback.key_learnings !== "None") {
         html += `
             <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
                 <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Key Learnings</h4>
@@ -251,14 +265,13 @@ document.addEventListener('DOMContentLoaded', function() {
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05 } }
     }).render();
 
-    // 2. Sentiment Radar
+    // 2. Sentiment Radar (Updated to 2 points)
     new ApexCharts(document.querySelector("#sentimentRadarChart"), {
         series: [{
             name: 'Avg Score',
             data: [
                 {{ stats.q1 if stats.q1 else 0 }}, 
-                {{ stats.q2 if stats.q2 else 0 }}, 
-                {{ stats.q3 if stats.q3 else 0 }}
+                {{ stats.q2 if stats.q2 else 0 }}
             ]
         }],
         chart: { type: 'radar', height: 180, toolbar: {show: false} },
@@ -266,9 +279,11 @@ document.addEventListener('DOMContentLoaded', function() {
         colors: ['#ef4444'],
         yaxis: { max: 5, show: false }
     }).render();
+
     // 3. Response Gauge
     const totalCount = {{ rows|length if rows else 1 }};
-    const completedCount = {{ (attendance_trend|sum / 6)|round|int if attendance_trend else 0 }};
+    const sumAttend = {{ attendance_trend|sum if attendance_trend else 0 }};
+    const completedCount = Math.round(sumAttend / 6);
     new ApexCharts(document.querySelector("#responseGaugeChart"), {
         series: [completedCount, Math.max(0, totalCount - completedCount)],
         chart: { type: 'donut', height: 180 },

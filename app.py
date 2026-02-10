@@ -318,7 +318,6 @@ def get_clean_row_val(row_dict, possible_names):
                     pass
             return s
     return ""
-
 @app.route("/upload/<cohort_context>", methods=["POST"])
 def upload(cohort_context):
     file = request.files.get("file")
@@ -329,17 +328,39 @@ def upload(cohort_context):
     cur = conn.cursor()
 
     try:
-        # LOAD AS STRINGS: This is the primary fix for Scientific Numbers
+        # 1. LOAD DATA
         if file.filename.lower().endswith(".csv"):
             raw = file.read().decode("utf-8", errors="ignore")
             df = pd.read_csv(StringIO(raw), sep=None, engine='python', dtype=str)
         else:
-            # Using dtype=str prevents Pandas from guessing 'number' types
             df = pd.read_excel(file, engine="openpyxl", dtype=str)
 
+        # 2. CLEAN COLUMN NAMES
         df.columns = [str(c).strip().lower() for c in df.columns]
-        df = df.dropna(how='all')
+        
+        # 3. FIX SCIENTIFIC NOTATION & FLOAT FORMATTING FOR ID NUMBERS
+        # Identify the ID column dynamically
+        id_col_name = next((c for c in df.columns if 'id' in c), None)
+        
+        if id_col_name:
+            def clean_id(val):
+                val = str(val).strip()
+                if not val or val.lower() == 'nan':
+                    return None
+                # Convert scientific '1.23e+12' to full string '1234567890123'
+                if 'e+' in val.lower():
+                    try:
+                        val = '{:.0f}'.format(float(val))
+                    except:
+                        pass
+                # Remove trailing '.0' (common when reading Excel integers)
+                if val.endswith('.0'):
+                    val = val[:-2]
+                return val
 
+            df[id_col_name] = df[id_col_name].apply(clean_id)
+
+        df = df.dropna(how='all')
         data_to_insert = []
 
         for _, row in df.iterrows():
@@ -351,18 +372,18 @@ def upload(cohort_context):
             m_digit = digit_match.group(0) if digit_match else None
             assigned_day = MENTORSHIP_MAP.get(m_digit, "Unassigned")
 
-            # B. ID NUMBER HANDLING
-            id_num = get_clean_row_val(row_dict, ["id number", "id_number", "id"])
-            if not id_num or id_num.lower() == "id number":
+            # B. GET CLEANED ID
+            id_num = row_dict.get(id_col_name)
+            if not id_num or str(id_num).lower() == "id number":
                 continue
 
             data_to_insert.append((
                 assigned_day,
                 get_clean_row_val(row_dict, ["client"]),
-                get_clean_row_val(row_dict, ["primary contact", "primary cont"]),
+                get_clean_row_val(row_dict, ["primary contact", "primary cont", "contact person"]),
                 get_clean_row_val(row_dict, ["email"]),
-                get_clean_row_val(row_dict, ["phone", "cell"]),
-                id_num, # Now cleaned of scientific notation
+                get_clean_row_val(row_dict, ["phone", "cell", "contact number"]),
+                id_num,
                 get_clean_row_val(row_dict, ["cipc number", "cipc"]),
                 get_clean_row_val(row_dict, ["tier"]),
                 raw_source,
@@ -375,19 +396,17 @@ def upload(cohort_context):
                     cohort, client, primary_contact, email, phone, 
                     id_number, cipc_number, tier, source, comment
                 ) VALUES %s
-                ON CONFLICT (cohort, id_number) DO UPDATE SET
-                    client = EXCLUDED.client,
-                    primary_contact = EXCLUDED.primary_contact,
-                    email = EXCLUDED.email,
-                    phone = EXCLUDED.phone,
-                    cipc_number = EXCLUDED.cipc_number,
+                ON CONFLICT (id_number) DO UPDATE SET
+                    client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
+                    primary_contact = COALESCE(NULLIF(EXCLUDED.primary_contact, ''), cohort_candidates.primary_contact),
+                    email = COALESCE(NULLIF(EXCLUDED.email, ''), cohort_candidates.email),
+                    phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
                     tier = EXCLUDED.tier,
-                    source = EXCLUDED.source,
-                    comment = EXCLUDED.comment
+                    comment = COALESCE(cohort_candidates.comment, EXCLUDED.comment)
             """, data_to_insert)
 
         conn.commit()
-        flash(f"Sync Complete: {len(data_to_insert)} candidates sorted.")
+        flash(f"Sync Complete: {len(data_to_insert)} records processed.")
 
     except Exception as e:
         conn.rollback()
@@ -399,14 +418,13 @@ def upload(cohort_context):
 
 @app.route('/survey/<cohort>/<session_id>', methods=['GET', 'POST'])
 def handle_survey(cohort, session_id):
-    # 1. Get a connection from the pool
     conn = db_pool.getconn()
     try:
         if request.method == 'POST':
             step = request.form.get('step')
 
-            # --- STEP 1: IDENTITY VERIFICATION ---
             if step == '1':
+                # ... (Step 1 remains the same) ...
                 email = request.form.get('email', '').strip().lower()
                 name = request.form.get('name', '').strip()
                 phone = request.form.get('phone', '').strip()
@@ -425,59 +443,66 @@ def handle_survey(cohort, session_id):
                 return render_template('survey_entry.html', cohort=cohort, session=session_id, 
                                      step=2, user=user_data, is_guest=is_guest)
 
-            # --- STEP 2: SAVE FEEDBACK ---
             elif step == '2':
                 email = request.form.get('verified_email', '').strip().lower()
                 client_name = request.form.get('verified_name', '').strip()
                 phone = request.form.get('verified_phone', '').strip()
 
-                # Start a single transaction for both guest registration and survey submission
                 with conn:
                     with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                        # A. Check if they are a registered member or guest
-                        cur.execute("SELECT cohort FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
+                        # A. Check for existing candidate
+                        cur.execute("SELECT cohort, client, phone FROM cohort_candidates WHERE TRIM(LOWER(email)) = %s", (email,))
                         candidate = cur.fetchone()
                         
                         assigned_tag = candidate['cohort'] if candidate else "Guest"
                         
-                        # B. Register Guest if not found in candidate list
+                        # B. Registration/Enrichment Logic
                         if not candidate:
+                            # Register a completely new guest
                             cur.execute("""
-                                INSERT INTO cohort_candidates (cohort, client, email, phone, id_number)
-                                VALUES (%s, %s, %s, %s, %s)
-                                ON CONFLICT DO NOTHING
+                                INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, comment)
+                                VALUES (%s, %s, %s, %s, %s, 'Self-registered Guest')
                             """, (assigned_tag, client_name, email, phone, f"GUEST-{email}"))
+                        else:
+                            # ENRICHMENT: Only update fields if they are currently empty/null
+                            # We mark it as 'Enriched' in the comment for the purple badge
+                            cur.execute("""
+                                UPDATE cohort_candidates 
+                                SET 
+                                    phone = COALESCE(NULLIF(phone, ''), %s),
+                                    client = COALESCE(NULLIF(client, ''), %s),
+                                    comment = CASE 
+                                        WHEN (phone IS NULL OR phone = '') OR (client IS NULL OR client = '') 
+                                        THEN 'Enriched' 
+                                        ELSE comment 
+                                    END
+                                WHERE TRIM(LOWER(email)) = %s
+                            """, (phone, client_name, email))
 
-                        # C. Save Survey (Matches your 2-rating form)
-                        # We use exactly 7 columns and 7 values to avoid the 'tuple index' error.
+                        # C. Save Survey
                         cur.execute("""
                             INSERT INTO survey_submissions (
                                 respondent_email, survey_number, cohort_tag,
                                 q1, q2, apply_plan, key_learnings
                             ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                         """, (
-                            email,                                       # 1
-                            session_id.lower().replace('s', ''),         # 2
-                            assigned_tag,                                # 3
-                            request.form.get('quality'),                 # 4
-                            request.form.get('relevance'),               # 5
-                            request.form.get('apply_plan'),              # 6
-                            request.form.get('key_learnings')             # 7
+                            email, 
+                            session_id.lower().replace('s', ''), 
+                            assigned_tag,
+                            request.form.get('quality'),   
+                            request.form.get('relevance'), 
+                            request.form.get('apply_plan'), 
+                            request.form.get('key_learnings')
                         ))
                 
-                # If everything succeeds, show the download page
                 return render_template('download_deck.html', cohort=cohort, session=session_id)
 
     except Exception as e:
-        # Logs the error to your console so you can see why it failed
         print(f"Database Error: {e}")
-        flash("A database error occurred. Please refresh the page and try again.")
-    
+        flash("An error occurred. Please try again.")
     finally:
-        # ALWAYS release the connection back to the pool, even if it failed
         db_pool.putconn(conn)
 
-    # Default fallback to step 1
     return render_template('survey_entry.html', cohort=cohort, session=session_id, step=1, user=None, is_guest=True)
     
 @app.route('/download/<cohort>/<session_id>')

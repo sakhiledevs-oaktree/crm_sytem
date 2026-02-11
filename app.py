@@ -18,11 +18,30 @@ NEON_DATABASE_URL = 'postgresql://neondb_owner:npg_J0LaKIwNbX3o@ep-frosty-hat-ah
 
 from psycopg2 import pool
 
-# Create a global pool (min 1 connection, max 10)
-db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, NEON_DATABASE_URL)
 
+db_pool = ThreadedConnectionPool(
+    minconn=1,
+    maxconn=10,
+    dsn=NEON_DATABASE_URL,
+    sslmode="require",
+    connect_timeout=10
+)
 
-db_pool = ThreadedConnectionPool(1, 10, NEON_DATABASE_URL)
+def get_conn():
+    conn = db_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+    except psycopg2.OperationalError:
+        db_pool.putconn(conn, close=True)
+        conn = db_pool.getconn()
+    return conn
+
+def release_conn(conn, *, close=False):
+    if close:
+        db_pool.putconn(conn, close=True)
+    else:
+        db_pool.putconn(conn)
 
 def get_db_connection():
     return db_pool.getconn()
@@ -43,7 +62,9 @@ login_manager.init_app(app)
 login_manager.login_view = "login" # Redirects here if user isn't logged in
 
 def init_db():
-    conn = psycopg2.connect(NEON_DATABASE_URL)
+
+    conn = get_conn()
+
     cur = conn.cursor()
 
     # 1. Cohort Candidates Table
@@ -119,7 +140,7 @@ def release_db(conn):
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = psycopg2.connect(NEON_DATABASE_URL)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
     row = cur.fetchone()
@@ -138,7 +159,7 @@ def login():
         username = request.form.get("username")
         password = request.form.get("password")
         
-        conn = psycopg2.connect(NEON_DATABASE_URL)
+        conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute("SELECT * FROM users WHERE username = %s", (username,))
         user_row = cur.fetchone()
@@ -173,7 +194,7 @@ def load_tabular_file(file):
 
 @app.route("/api/surveys/<path:email>/<int:num>")
 def get_survey_details(email, num):
-    conn = psycopg2.connect(NEON_DATABASE_URL)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
     clean_email = email.lower().strip()
@@ -208,7 +229,7 @@ def get_survey_details(email, num):
 
 @app.route("/api/cohort_analysis/<cohort_name>")
 def cohort_analysis(cohort_name):
-    conn = psycopg2.connect(NEON_DATABASE_URL)
+    conn = get_conn()
     cur = conn.cursor()
     
     # Calculate the average for each of the 6 questions for the whole cohort
@@ -228,70 +249,86 @@ def cohort_analysis(cohort_name):
         "labels": ["Leadership", "Strategy", "Finance", "Marketing", "Operations", "Impact"],
         "averages": [float(x) if x else 0 for x in stats]
     })
+
 @app.route("/")
 @login_required
 def dashboard():
-    cohort = request.args.get("cohort", "All")
-    conn = psycopg2.connect(NEON_DATABASE_URL)
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    conn = None
+    cur = None
 
-    # 1. UNIFIED QUERY
-    query = """
-        SELECT 
-            c.*, 
-            COALESCE(ARRAY_AGG(s.survey_number) FILTER (WHERE s.survey_number IS NOT NULL), '{}') as completed_surveys
-        FROM cohort_candidates c
-        LEFT JOIN survey_submissions s ON LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email))
-        WHERE (%s = 'All' OR c.cohort = %s)
-        GROUP BY c.id 
-        ORDER BY c.client ASC
-    """
-    cur.execute(query, (cohort, cohort))
-    rows = cur.fetchall()
+    try:
+        cohort = request.args.get("cohort", "All")
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # 2. CALCULATE ANALYTICS
-    attendance_trend = [0] * 6
-    # FIXED: Only q1 and q2 initialized
-    avg_stats = {"q1": 0, "q2": 0} 
-    recent_comments = []
+        query = """
+            SELECT 
+                c.*, 
+                COALESCE(
+                    ARRAY_AGG(s.survey_number)
+                    FILTER (WHERE s.survey_number IS NOT NULL),
+                    '{}'
+                ) AS completed_surveys
+            FROM cohort_candidates c
+            LEFT JOIN survey_submissions s
+              ON LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email))
+            WHERE (%s = 'All' OR c.cohort = %s)
+            GROUP BY c.id
+            ORDER BY c.client ASC
+        """
+        cur.execute(query, (cohort, cohort))
+        rows = cur.fetchall()
 
-    if cohort != "All":
-        # Get counts for Attendance Trend
-        cur.execute("""
-            SELECT survey_number, COUNT(*) 
-            FROM survey_submissions 
-            WHERE cohort_tag = %s GROUP BY survey_number
-        """, (cohort,))
-        for count_row in cur.fetchall():
-            if 1 <= count_row[0] <= 6:
-                attendance_trend[count_row[0]-1] = count_row[1]
+        attendance_trend = [0] * 6
+        avg_stats = {"q1": 0, "q2": 0}
+        recent_comments = []
 
-        # FIXED: Only SELECT q1 and q2 averages
-        cur.execute("""
-            SELECT AVG(q1), AVG(q2) 
-            FROM survey_submissions WHERE cohort_tag = %s
-        """, (cohort,))
-        
-        stat_row = cur.fetchone()
-        
-        # FIXED: Safe rounding check to prevent NoneType errors
-        if stat_row and stat_row[0] is not None:
-            avg_stats = {
-                "q1": round(stat_row[0], 1) if stat_row[0] else 0, 
-                "q2": round(stat_row[1], 1) if stat_row[1] else 0
-            }
+        if cohort != "All":
+            cur.execute("""
+                SELECT survey_number, COUNT(*)
+                FROM survey_submissions
+                WHERE cohort_tag = %s
+                GROUP BY survey_number
+            """, (cohort,))
+            for survey_num, count in cur.fetchall():
+                if 1 <= survey_num <= 6:
+                    attendance_trend[survey_num - 1] = count
 
-        # Get Recent Key Learnings
-        cur.execute("""
-            SELECT key_learnings, apply_plan FROM survey_submissions 
-            WHERE cohort_tag = %s ORDER BY submitted_at DESC LIMIT 5
-        """, (cohort,))
-        recent_comments = cur.fetchall()
-    
-    cur.close(); conn.close()
-    return render_template("dashboard.html", rows=rows, cohort=cohort, 
-                           attendance_trend=attendance_trend, stats=avg_stats, comments=recent_comments)
+            cur.execute("""
+                SELECT AVG(q1), AVG(q2)
+                FROM survey_submissions
+                WHERE cohort_tag = %s
+            """, (cohort,))
+            stat_row = cur.fetchone()
+            if stat_row and stat_row[0] is not None:
+                avg_stats = {
+                    "q1": round(stat_row[0], 1),
+                    "q2": round(stat_row[1], 1)
+                }
 
+            cur.execute("""
+                SELECT key_learnings, apply_plan
+                FROM survey_submissions
+                WHERE cohort_tag = %s
+                ORDER BY submitted_at DESC
+                LIMIT 5
+            """, (cohort,))
+            recent_comments = cur.fetchall()
+
+        return render_template(
+            "dashboard.html",
+            rows=rows,
+            cohort=cohort,
+            attendance_trend=attendance_trend,
+            stats=avg_stats,
+            comments=recent_comments
+        )
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            release_conn(conn)
 
 def get_clean_row_val(row_dict, possible_names):
     """Fuzzy-matches columns and preserves long ID/CIPC numbers from scientific notation."""
@@ -315,6 +352,25 @@ def get_clean_row_val(row_dict, possible_names):
             return s
     return ""
 
+def ultimate_id_fix(val):
+    """Handles scientific notation with both dots and commas."""
+    if not val or str(val).lower() in ['nan', 'none', '']:
+        return None
+    
+    # Convert to string and clean spaces
+    val = str(val).strip()
+    
+    # THE FIX: Replace comma with dot for scientific notation (8,70E+12 -> 8.70E+12)
+    val = val.replace(',', '.')
+    
+    try:
+        num_val = float(val)
+        clean_val = '{:.0f}'.format(num_val)
+        return clean_val if len(clean_val) > 5 else val
+    except:
+        return val
+
+
 @app.route("/upload/<cohort_context>", methods=["POST"])
 def upload(cohort_context):
     file = request.files.get("file")
@@ -325,103 +381,93 @@ def upload(cohort_context):
     cur = conn.cursor()
 
     try:
-        # 1. LOAD DATA
+        # ---- LOAD FILE AS STRINGS (prevents scientific notation issues) ----
         if file.filename.lower().endswith(".csv"):
             raw = file.read().decode("utf-8", errors="ignore")
-            df = pd.read_csv(StringIO(raw), sep=None, engine='python', dtype=str)
+            df = pd.read_csv(StringIO(raw), sep=None, engine="python", dtype=str)
         else:
             df = pd.read_excel(file, engine="openpyxl", dtype=str)
 
+        # ---- NORMALIZE DATAFRAME ----
         df.columns = [str(c).strip().lower() for c in df.columns]
-        id_col_name = next((c for c in df.columns if 'id' in c), None)
-        
-        # 2. CLEANING FUNCTIONS
-        def clean_id(val):
-            val = str(val).strip()
-            if not val or val.lower() in ['nan', 'none', 'null', '']:
-                return None
-            if 'e+' in val.lower():
-                try: val = '{:.0f}'.format(float(val))
-                except: pass
-            if val.endswith('.0'):
-                val = val[:-2]
-            return val
+        df = df.dropna(how="all")
 
-        if id_col_name:
-            df[id_col_name] = df[id_col_name].apply(clean_id)
+        raw_rows = []
 
-        df = df.dropna(how='all')
-        
-        with_ids = []
-        no_ids = []
-
-        # 3. SORT DATA INTO BATCHES
         for _, row in df.iterrows():
             row_dict = row.to_dict()
-            
-            # Skip only if it's the literal header text
-            id_num = row_dict.get(id_col_name)
-            if str(id_num).lower() == "id number":
+
+            # A. COHORT / MENTORSHIP DAY MAPPING
+            raw_source = get_clean_row_val(row_dict, ["source"])
+            digit_match = re.search(r"\d", str(raw_source))
+            m_digit = digit_match.group(0) if digit_match else None
+            assigned_day = MENTORSHIP_MAP.get(m_digit, "Unassigned")
+
+            # B. ID NUMBER (CRITICAL)
+            id_num = get_clean_row_val(row_dict, ["id number", "id_number", "id"])
+            if not id_num or id_num.lower() == "id number":
                 continue
 
-            raw_source = get_clean_row_val(row_dict, ["source"])
-            digit_match = re.search(r'\d', str(raw_source))
-            assigned_day = MENTORSHIP_MAP.get(digit_match.group(0) if digit_match else None, "Unassigned")
+            # Normalize ID
+            id_num = str(id_num).strip().replace(".0", "")
 
-            record = (
-                assigned_day,
+            raw_rows.append((
+                assigned_day,                                      # cohort
                 get_clean_row_val(row_dict, ["client"]),
-                get_clean_row_val(row_dict, ["primary contact", "primary cont", "contact person"]),
+                get_clean_row_val(row_dict, ["primary contact", "primary cont"]),
                 get_clean_row_val(row_dict, ["email"]),
-                get_clean_row_val(row_dict, ["phone", "cell", "contact number"]),
-                id_num, # Might be None
+                get_clean_row_val(row_dict, ["phone", "cell"]),
+                id_num,                                            # id_number
                 get_clean_row_val(row_dict, ["cipc number", "cipc"]),
                 get_clean_row_val(row_dict, ["tier"]),
                 raw_source,
                 get_clean_row_val(row_dict, ["contactability", "comment", "comments"])
+            ))
+
+        # ---- DEDUPE BY (cohort, id_number) ----
+        deduped = {}
+        for row in raw_rows:
+            key = (row[0], row[5])  # (cohort, id_number)
+            deduped[key] = row     # last occurrence wins
+
+        data_to_insert = list(deduped.values())
+
+        # ---- UPSERT ----
+        if data_to_insert:
+            execute_values(
+                cur,
+                """
+                INSERT INTO cohort_candidates (
+                    cohort, client, primary_contact, email, phone,
+                    id_number, cipc_number, tier, source, comment
+                ) VALUES %s
+                ON CONFLICT (cohort, id_number) DO UPDATE SET
+                    client = EXCLUDED.client,
+                    primary_contact = EXCLUDED.primary_contact,
+                    email = EXCLUDED.email,
+                    phone = EXCLUDED.phone,
+                    cipc_number = EXCLUDED.cipc_number,
+                    tier = EXCLUDED.tier,
+                    source = EXCLUDED.source,
+                    comment = EXCLUDED.comment
+                """,
+                data_to_insert
             )
 
-            if id_num:
-                with_ids.append(record)
-            else:
-                no_ids.append(record)
-
-        # 4. EXECUTE DATABASE OPS
-        # Batch 1: Upsert records with IDs
-        if with_ids:
-            execute_values(cur, """
-                INSERT INTO cohort_candidates (
-                    cohort, client, primary_contact, email, phone, 
-                    id_number, cipc_number, tier, source, comment
-                ) VALUES %s
-                ON CONFLICT (id_number) DO UPDATE SET
-                    client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
-                    primary_contact = COALESCE(NULLIF(EXCLUDED.primary_contact, ''), cohort_candidates.primary_contact),
-                    email = COALESCE(NULLIF(EXCLUDED.email, ''), cohort_candidates.email),
-                    phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
-                    tier = EXCLUDED.tier,
-                    comment = COALESCE(cohort_candidates.comment, EXCLUDED.comment)
-            """, with_ids)
-
-        # Batch 2: Plain insert for records without IDs
-        if no_ids:
-            execute_values(cur, """
-                INSERT INTO cohort_candidates (
-                    cohort, client, primary_contact, email, phone, 
-                    id_number, cipc_number, tier, source, comment
-                ) VALUES %s
-            """, no_ids)
-
         conn.commit()
-        flash(f"Sync Complete: {len(with_ids) + len(no_ids)} records processed.")
+        flash(f"Sync Complete: {len(data_to_insert)} candidates processed.")
 
     except Exception as e:
         conn.rollback()
         flash(f"Error: {str(e)}")
+
     finally:
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
 
     return redirect(url_for("dashboard", cohort=cohort_context))
+
+
 
 @app.route('/survey/<cohort>/<session_id>', methods=['GET', 'POST'])
 def handle_survey(cohort, session_id):
@@ -431,7 +477,7 @@ def handle_survey(cohort, session_id):
             step = request.form.get('step')
 
             if step == '1':
-                # ... (Step 1 remains the same) ...
+                
                 email = request.form.get('email', '').strip().lower()
                 name = request.form.get('name', '').strip()
                 phone = request.form.get('phone', '').strip()
@@ -540,7 +586,7 @@ def update_comment():
     id_number = data.get("id_number")
     comment_text = data.get("comment")
 
-    conn = psycopg2.connect(NEON_DATABASE_URL)
+    conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("""
@@ -556,5 +602,4 @@ def update_comment():
         cur.close(); conn.close()
 
 if __name__ == "__main__":    
-    init_db()
-    app.run(debug=True)
+    app.run(debug=False)

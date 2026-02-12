@@ -215,14 +215,48 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('whatsappTemplate').value = localStorage.getItem('whatsapp_pretext') || "";
 });
 
-function sendWhatsApp(phone, name) {
-    let template = document.getElementById('whatsappTemplate').value;
-    if (!template) return alert("Type a message first!");
+function sendWhatsApp(phone, clientName, event) {
+    if (!phone || phone === '-') return;
+
     let cleanPhone = phone.replace(/\D/g, '');
-    let finalMsg = encodeURIComponent(template.replace(/{name}/g, name));
-    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${finalMsg}`, '_blank');
+    if (cleanPhone.startsWith('0')) cleanPhone = '27' + cleanPhone.substring(1);
+    
+    // Save to local storage to remember "Sent" status
+    localStorage.setItem('sent_' + cleanPhone, 'true');
+    
+    // Update button UI
+    const btn = event.currentTarget;
+    btn.style.background = '#94a3b8';
+    btn.innerText = 'SENT';
+
+    const msg = encodeURIComponent(`Hi ${clientName}, just following up on the session survey!`);
+    window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
 }
 
+// Restore "Sent" state on page refresh
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll('.whatsapp-btn').forEach(btn => {
+        const phone = btn.getAttribute('data-phone').replace(/\D/g, '');
+        const cleanPhone = phone.startsWith('0') ? '27' + phone.substring(1) : phone;
+        if (localStorage.getItem('sent_' + cleanPhone)) {
+            btn.style.background = '#94a3b8';
+            btn.innerText = 'SENT';
+        }
+    });
+});
+// Function to run on page load to color buttons for previously messaged people
+document.addEventListener("DOMContentLoaded", function() {
+    const buttons = document.querySelectorAll('.whatsapp-btn');
+    buttons.forEach(btn => {
+        const phone = btn.getAttribute('data-phone').replace(/\D/g, '');
+        const cleanPhone = phone.startsWith('0') ? '27' + phone.substring(1) : phone;
+        
+        if (localStorage.getItem('sent_' + cleanPhone)) {
+            btn.style.background = '#94a3b8';
+            btn.innerText = 'SENT';
+        }
+    });
+});
 function saveComment(idNumber, text, btnElement) {
     const originalBg = btnElement.style.background;
     fetch('/update_comment', {

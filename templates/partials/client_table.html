@@ -111,10 +111,11 @@
                         {{ row.tier if row.tier else 'STANDARD' }}
                     </span>
                 </td>
-
                 <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9;" onclick="event.stopPropagation()">
-                    <button onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}')" 
-                        style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer; flex-shrink: 0;">
+                    <button class="whatsapp-btn" 
+                        data-phone="{{ row.phone }}"
+                        onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}', event)" 
+                        style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer; transition: 0.3s;">
                         SEND
                     </button>
                 </td>

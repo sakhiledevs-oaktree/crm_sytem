@@ -102,6 +102,10 @@
         </div>
     </div>
 
+    <div class="data-card" style="padding: 20px; margin-bottom: 24px;">
+        <div id="verifiedAttendanceTrendChart"></div>
+    </div>
+
     <div class="analytics-row" style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.8fr; gap: 20px; margin-bottom: 24px;">
         <div class="data-card" style="padding: 20px;">
             <h3 class="chart-label">Engagement Depth (Attended vs Surveyed)</h3>
@@ -119,6 +123,11 @@
             <h3 class="chart-label">Response Gauge</h3>
             <div id="responseGaugeChart"></div>
         </div>
+        <!-- <div class="stat-card">
+            <h3>Verified Attendees</h3>
+            <p class="stat-number">{{ total_attendees }}</p>
+            <small>Excl. Staff & Unmatched</small>
+        </div> -->
     </div>
 
     <div class="data-card" style="padding: 20px; margin-bottom: 24px;">
@@ -199,7 +208,6 @@
 <script>
 let currentEmail = null;
 
-// Table Filtering
 function filterTable() {
     let input = document.getElementById("crmSearch");
     let filter = input.value.toUpperCase();
@@ -210,30 +218,22 @@ function filterTable() {
     });
 }
 
-// WhatsApp & Comment Functions
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('whatsappTemplate').value = localStorage.getItem('whatsapp_pretext') || "";
 });
 
 function sendWhatsApp(phone, clientName, event) {
     if (!phone || phone === '-') return;
-
     let cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.startsWith('0')) cleanPhone = '27' + cleanPhone.substring(1);
-    
-    // Save to local storage to remember "Sent" status
     localStorage.setItem('sent_' + cleanPhone, 'true');
-    
-    // Update button UI
     const btn = event.currentTarget;
     btn.style.background = '#94a3b8';
     btn.innerText = 'SENT';
-
     const msg = encodeURIComponent(`Hi ${clientName}, just following up on the session survey!`);
     window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
 }
 
-// Restore "Sent" state on page refresh
 document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('.whatsapp-btn').forEach(btn => {
         const phone = btn.getAttribute('data-phone').replace(/\D/g, '');
@@ -244,19 +244,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 });
-// Function to run on page load to color buttons for previously messaged people
-document.addEventListener("DOMContentLoaded", function() {
-    const buttons = document.querySelectorAll('.whatsapp-btn');
-    buttons.forEach(btn => {
-        const phone = btn.getAttribute('data-phone').replace(/\D/g, '');
-        const cleanPhone = phone.startsWith('0') ? '27' + phone.substring(1) : phone;
-        
-        if (localStorage.getItem('sent_' + cleanPhone)) {
-            btn.style.background = '#94a3b8';
-            btn.innerText = 'SENT';
-        }
-    });
-});
+
 function saveComment(idNumber, text, btnElement) {
     const originalBg = btnElement.style.background;
     fetch('/update_comment', {
@@ -273,7 +261,6 @@ function saveComment(idNumber, text, btnElement) {
     });
 }
 
-// Drawer Logic
 function openCandidateProfile(email, name) {
     currentEmail = email;
     document.getElementById('drawerName').innerText = name;
@@ -328,7 +315,7 @@ function copySurveyLink(cohort, session) {
 // Analytics Charts
 {% if cohort != 'All' %}
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Engagement Depth (Blue vs Red)
+    // 1. Engagement Depth
     new ApexCharts(document.querySelector("#engagementDepthChart"), {
         series: [
             { name: 'Attended (Teams)', data: {{ attendance_totals|tojson if attendance_totals else [0,0,0,0,0,0] }} },
@@ -341,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
         legend: { position: 'top', fontSize: '10px' }
     }).render();
 
-    // 2. Survey Volume (Red Trend)
+    // 2. Survey Volume
     new ApexCharts(document.querySelector("#attendanceTrendChart"), {
         series: [{ name: 'Participants', data: {{ attendance_trend|tojson if attendance_trend else [0,0,0,0,0,0] }} }],
         chart: { type: 'area', height: 180, toolbar: {show: false} },
@@ -370,6 +357,37 @@ document.addEventListener('DOMContentLoaded', function() {
         colors: ['#ef4444', '#f1f5f9'],
         legend: { show: false },
         plotOptions: { pie: { donut: { labels: { show: true, total: { show: true, label: 'Engaged' } } } } }
+    }).render();
+
+    // 5. Verified Raw Attendance Trend (The missing chart logic fixed)
+    new ApexCharts(document.querySelector("#verifiedAttendanceTrendChart"), {
+        series: [{
+            name: 'Raw External Headcount',
+            data: {{ attendance_totals|tojson if attendance_totals else [0,0,0,0,0,0] }}
+        }],
+        chart: {
+            type: 'area',
+            height: 250,
+            toolbar: { show: false },
+            zoom: { enabled: false }
+        },
+        colors: ['#2563eb'],
+        fill: {
+            type: 'gradient',
+            gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.1 }
+        },
+        stroke: { curve: 'smooth', width: 3 },
+        dataLabels: { enabled: true },
+        xaxis: {
+            categories: ['Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5', 'Session 6'],
+            labels: { style: { colors: '#64748b', fontWeight: 600 } }
+        },
+        yaxis: { title: { text: 'Headcount' } },
+        title: {
+            text: 'Raw Meeting Headcount (Excluding Team)',
+            align: 'left',
+            style: { fontSize: '14px', color: '#1e293b', fontWeight: '700' }
+        }
     }).render();
 });
 {% endif %}

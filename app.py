@@ -187,8 +187,6 @@ def logout():
     return redirect(url_for("login"))
 
 def load_tabular_file(file):
-    import pandas as pd
-    import io
 
     filename = file.filename.lower()
     file_bytes = file.read()
@@ -270,7 +268,6 @@ def cohort_analysis(cohort_name):
         "averages": [float(x) if x else 0 for x in stats]
     })
 
-
 @app.route("/")
 @login_required
 def dashboard():
@@ -281,75 +278,52 @@ def dashboard():
         cohort = request.args.get("cohort", "All")
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        # Updated JOIN logic inside your dashboard() function
-        # Replace the query variable in your dashboard() function with this:
+
+        # 1. Main Table Query (Kept exactly as is to preserve Dots logic)
         query = """
             SELECT 
                 c.*, 
-                COALESCE(
-                    ARRAY_AGG(DISTINCT s.survey_number) 
-                    FILTER (WHERE s.survey_number IS NOT NULL), 
-                    '{}'
-                ) AS completed_surveys,
-                COALESCE(
-                    ARRAY_AGG(DISTINCT a.session_number) 
-                    FILTER (WHERE a.session_number IS NOT NULL), 
-                    '{}'
-                ) AS attended_sessions
+                COALESCE(ARRAY_AGG(DISTINCT s.survey_number) FILTER (WHERE s.survey_number IS NOT NULL), '{}') AS completed_surveys,
+                COALESCE(ARRAY_AGG(DISTINCT a.session_number) FILTER (WHERE a.session_number IS NOT NULL), '{}') AS attended_sessions
             FROM cohort_candidates c
-            
-            -- Match Surveys by Email OR Name OR Phone
-            LEFT JOIN survey_submissions s
-            ON (LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email)) AND c.email <> '')
-            OR (LOWER(TRIM(c.client)) = LOWER(TRIM(s.respondent_name)))
-            OR (TRIM(c.phone) = TRIM(s.respondent_phone) AND c.phone <> '')
-            
-            -- Match Attendance by Email OR Name OR Phone
-            LEFT JOIN attendance_records a
-            ON (LOWER(TRIM(c.email)) = LOWER(TRIM(a.email)) AND c.email <> '')
-            OR (LOWER(TRIM(c.client)) = LOWER(TRIM(a.name)))
-            OR (TRIM(c.phone) = TRIM(a.phone) AND c.phone <> '')
-            
+            LEFT JOIN survey_submissions s ON 
+                (LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email)) AND c.email <> '') OR 
+                (LOWER(TRIM(c.client)) = LOWER(TRIM(s.respondent_name))) OR 
+                (TRIM(c.phone) = TRIM(s.respondent_phone) AND c.phone <> '')
+            LEFT JOIN attendance_records a ON 
+                (LOWER(TRIM(c.email)) = LOWER(TRIM(a.email)) AND c.email <> '') OR 
+                (LOWER(TRIM(c.client)) = LOWER(TRIM(a.name))) OR 
+                (TRIM(c.phone) = TRIM(a.phone) AND c.phone <> '')
             WHERE (%s = 'All' OR c.cohort = %s)
-            GROUP BY c.id
-            ORDER BY c.client ASC
+            GROUP BY c.id ORDER BY c.client ASC
         """
-
-        # We explicitly join c.email with a.email
         cur.execute(query, (cohort, cohort))
         rows = cur.fetchall()
 
+        # 2. Get Chart Totals and Summary Count (Fixed the Unpacking Error here)
+        attendance_totals, total_external_attendees = get_attendance_stats(cohort)
+
+        # Initialize defaults for visuals
         attendance_trend = [0] * 6
-        attendance_totals = [0] * 6
         avg_stats = {"q1": 0, "q2": 0}
         recent_comments = []
 
         if cohort != "All":
-            # 1. Survey Data (Red Bars)
+            # 3. Survey Data (Red Bars)
             cur.execute("""
-                SELECT survey_number, COUNT(*) FROM survey_submissions
+                SELECT survey_number, COUNT(DISTINCT respondent_email) FROM survey_submissions
                 WHERE cohort_tag = %s GROUP BY survey_number
             """, (cohort,))
             for survey_num, count in cur.fetchall():
                 if 1 <= survey_num <= 6:
                     attendance_trend[survey_num - 1] = count
 
-            # 2. Attendance Data (Blue Bars)
-            cur.execute("""
-                SELECT session_number, COUNT(*) FROM attendance_records
-                WHERE cohort = %s GROUP BY session_number
-            """, (cohort,))
-            for sess_num, count in cur.fetchall():
-                if 1 <= sess_num <= 6:
-                    attendance_totals[sess_num - 1] = count
-
-            # 3. Sentiment Stats
+            # 4. Sentiment & Comments
             cur.execute("SELECT AVG(q1), AVG(q2) FROM survey_submissions WHERE cohort_tag = %s", (cohort,))
             stat_row = cur.fetchone()
             if stat_row and stat_row[0] is not None:
                 avg_stats = {"q1": round(stat_row[0], 1), "q2": round(stat_row[1], 1)}
 
-            # 4. Key Learnings Feed
             cur.execute("""
                 SELECT key_learnings, apply_plan FROM survey_submissions
                 WHERE cohort_tag = %s ORDER BY submitted_at DESC LIMIT 5
@@ -360,12 +334,12 @@ def dashboard():
             "dashboard.html",
             rows=rows,
             cohort=cohort,
+            total_attendees=total_external_attendees, 
             attendance_trend=attendance_trend,
-            attendance_totals=attendance_totals,
+            attendance_totals=attendance_totals, # This now contains your 30+ headcount
             stats=avg_stats,
             comments=recent_comments
         )
-
     finally:
         if cur: cur.close()
         if conn: release_db(conn)
@@ -435,24 +409,19 @@ def ultimate_id_fix(val):
     except:
         return val
 
-
 @app.route("/upload_attendance/<int:session_num>", methods=["POST"])
 def upload_attendance(session_num):
     cohort = request.args.get('cohort')
     file = request.files.get('attendance_file')
     
-    if not file:
-        flash("No file selected.")
-        return redirect(url_for('dashboard', cohort=cohort))
+    if not file: return redirect(url_for('dashboard', cohort=cohort))
 
     try:
-        # 1. Load file with Teams-specific logic (skipping metadata)
         df = load_tabular_file(file) 
         df.columns = [str(c).strip().lower() for c in df.columns]
         
         name_col = next((c for c in df.columns if 'name' in c), None)
-        email_col = next((c for c in df.columns if 'email' in c or 'principal' in c), None)
-        phone_col = next((c for c in df.columns if any(p in c for p in ['phone', 'contact', 'mobile'])), None)
+        email_col = next((c for c in df.columns if 'email' in c), None)
 
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -460,48 +429,54 @@ def upload_attendance(session_num):
         cur.execute("SELECT client, email, phone FROM cohort_candidates WHERE cohort = %s", (cohort,))
         db_candidates = cur.fetchall()
 
+        raw_headcount = 0
         matched_count = 0
+        # NEW: Track unique names seen in this specific file
+        seen_names = set()
         
         for _, row in df.iterrows():
-            up_name = str(row.get(name_col, '')).strip().lower()
+            up_name = str(row.get(name_col, '')).strip()
             up_email = str(row.get(email_col, '')).strip().lower() if email_col else ""
-            up_phone = ''.join(filter(str.isdigit, str(row.get(phone_col, ''))))
 
-            if not up_name and not up_email and not up_phone:
+            # 1. Standard Filters
+            if not up_name or up_name.lower() == 'nan': continue
+            if "@oaktreepeople.co.za" in up_email: continue
+            if any(bot in up_name.lower() for bot in ['notetaker', 'read.ai', 'ai meeting']): continue
+
+            # 2. UNIQUE CHECK: If we've already counted this name in this upload, skip it
+            if up_name.lower() in seen_names:
                 continue
+            
+            seen_names.add(up_name.lower())
+            raw_headcount += 1
 
+            # 3. Match logic for the Blue Dots (attendance_records)
             for cand in db_candidates:
-                db_name = str(cand['client']).strip().lower()
-                db_email = str(cand['email']).strip().lower() if cand['email'] else ""
-                db_phone = ''.join(filter(str.isdigit, str(cand['phone']))) if cand['phone'] else ""
-                
-                is_match = False
-                if up_email and up_email == db_email: is_match = True
-                elif up_name and up_name == db_name: is_match = True
-                elif up_phone and up_phone == db_phone: is_match = True
-
-                if is_match:
-                    # CORRECT TABLE: attendance_records
-                    # We save name/phone/email so the Dashboard JOIN can find it
+                if (up_email and up_email == cand['email']) or (up_name.lower() == cand['client'].lower()):
                     cur.execute("""
-                        INSERT INTO attendance_records 
-                        (email, name, phone, session_number, cohort)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING
+                        INSERT INTO attendance_records (email, name, phone, session_number, cohort)
+                        VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING
                     """, (cand['email'], cand['client'], cand['phone'], session_num, cohort))
                     matched_count += 1
                     break 
 
+        # Save the deduplicated raw headcount
+        cur.execute("""
+            INSERT INTO session_metadata (cohort, session_number, raw_headcount)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (cohort, session_number) DO UPDATE SET raw_headcount = EXCLUDED.raw_headcount
+        """, (cohort, session_num, raw_headcount))
+
         conn.commit()
         cur.close()
         release_db(conn)
-        
-        flash(f"Attendance recorded for {matched_count} participants.")
+        flash(f"De-duplicated: {raw_headcount} unique external attendees found.")
 
     except Exception as e:
         flash(f"Error: {str(e)}")
     
     return redirect(url_for('dashboard', cohort=cohort))
+
 
 @app.route('/survey/<cohort>/<session_id>', methods=['GET', 'POST'])
 def handle_survey(cohort, session_id):
@@ -591,29 +566,41 @@ def handle_survey(cohort, session_id):
         db_pool.putconn(conn)
 
     return render_template('survey_entry.html', cohort=cohort, session=session_id, step=1, user=None, is_guest=True)
+
+def get_attendance_stats(cohort_name):
+    conn = get_conn()
+    cur = conn.cursor()
     
-@app.route('/download/<cohort>/<session_id>')
-def download_deck(cohort, session_id):
-    # Matches your folder names (e.g., 'monday')
-    cohort_folder = cohort.lower().strip()
+    # Chart Data (The Blue Bars - looking at the 30+ headcount)
+    chart_series = [0] * 6
+    cur.execute("""
+        SELECT session_number, raw_headcount 
+        FROM session_metadata 
+        WHERE (%s = 'All' OR cohort = %s)
+    """, (cohort_name, cohort_name))
     
-    # Matches your filenames (e.g., 'S1.pptx')
-    filename = f"{session_id.upper()}.pptx"
-    
-    # Construct the path to: static/decks/monday/
-    # Using os.path.join is the modern standard
-    directory = os.path.join(app.root_path, 'static', 'decks', cohort_folder)
-    
-    try:
-        return send_from_directory(
-            directory, 
-            filename, 
-            as_attachment=True
+    for sess_num, count in cur.fetchall():
+        if 1 <= sess_num <= 6:
+            chart_series[sess_num - 1] = count
+
+    # Stat Card (The Summary Number - only counting matched people)
+    cur.execute("""
+        SELECT COUNT(DISTINCT a.email) 
+        FROM attendance_records a
+        JOIN cohort_candidates c ON (
+            (LOWER(TRIM(a.email)) = LOWER(TRIM(c.email)) AND a.email <> '') OR 
+            (LOWER(TRIM(a.name)) = LOWER(TRIM(c.client)))
         )
-    except FileNotFoundError:
-        flash(f"Resource {filename} not found for {cohort}.")
-        return redirect(url_for('dashboard', cohort=cohort))
+        WHERE (%s = 'All' OR a.cohort = %s)
+    """, (cohort_name, cohort_name))
+    total_matched = cur.fetchone()[0] or 0
     
+    cur.close()
+    release_db(conn)
+    
+    # Returns exactly 2 items to match the "unpacking" in the dashboard route
+    return chart_series, total_matched
+
 @app.route("/update_comment", methods=["POST"])
 def update_comment():
     data = request.json

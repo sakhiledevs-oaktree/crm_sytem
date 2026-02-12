@@ -1,6 +1,7 @@
 import os
 import re
 import pandas as pd
+import io
 import psycopg2
 import psycopg2.extras
 from flask import Flask, render_template, request, redirect, jsonify, url_for, flash, send_from_directory
@@ -8,7 +9,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from psycopg2.extras import execute_values
 from io import StringIO
 from psycopg2.pool import ThreadedConnectionPool
-
+from io import BytesIO
 
 
 app = Flask(__name__)
@@ -16,7 +17,6 @@ app.secret_key = "dev-secret-key"
 
 NEON_DATABASE_URL = 'postgresql://neondb_owner:npg_J0LaKIwNbX3o@ep-frosty-hat-ahg0tukc-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
 
-from psycopg2 import pool
 
 
 db_pool = ThreadedConnectionPool(
@@ -119,8 +119,8 @@ def init_db():
     """)
 
     conn.commit()
-    cur.close()  # Only close after EVERYTHING is done
-    conn.close()
+    cur.close() 
+    release_db(conn)
     print("Database initialized successfully.")
 # ==========================
 # FILE LOADER (CSV + EXCEL)#
@@ -144,7 +144,9 @@ def load_user(user_id):
     cur = conn.cursor()
     cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
     row = cur.fetchone()
-    cur.close(); conn.close()
+    cur.close()
+    release_db(conn)
+
     if row:
         return User(row[0], row[1])
     return None
@@ -152,6 +154,8 @@ def load_user(user_id):
 # ==========================
 # LOGIN ROUTES             #
 # ==========================
+
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -163,7 +167,9 @@ def login():
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute("SELECT * FROM users WHERE username = %s", (username,))
         user_row = cur.fetchone()
-        cur.close(); conn.close()
+        cur.close()
+        release_db(conn)
+
 
         # Simple check (For better security, use check_password_hash)
         if user_row and user_row['password'] == password:
@@ -181,16 +187,25 @@ def logout():
     return redirect(url_for("login"))
 
 def load_tabular_file(file):
+    import pandas as pd
+    import io
+
     filename = file.filename.lower()
-
+    file_bytes = file.read()
+    
     if filename.endswith(".csv"):
-        return pd.read_csv(file, encoding="utf-8-sig")
+        try:
+            # Teams CSV fallback (Tab separated, UTF-16, skipping the 9-line summary)
+            return pd.read_csv(io.BytesIO(file_bytes), encoding="utf-16", sep='\t', skiprows=9)
+        except:
+            # Standard CSV fallback
+            return pd.read_csv(io.BytesIO(file_bytes), encoding="utf-8-sig")
 
-    elif filename.endswith(".xlsx") or filename.endswith(".xls"):
-        return pd.read_excel(file)
-
-    else:
-        raise ValueError("Unsupported file format")
+    elif filename.endswith((".xlsx", ".xls")):
+        # Excel Teams fallback (skipping the 9-line summary)
+        return pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl', skiprows=9)
+    
+    raise ValueError("Unsupported format.")
 
 @app.route("/api/surveys/<path:email>/<int:num>")
 def get_survey_details(email, num):
@@ -225,7 +240,10 @@ def get_survey_details(email, num):
         print(f"API Error: {e}")
         return jsonify({"error": "Server error"}), 500
     finally:
-        cur.close(); conn.close()
+        cur.close()
+        release_db(conn)
+
+
 
 @app.route("/api/cohort_analysis/<cohort_name>")
 def cohort_analysis(cohort_name):
@@ -242,13 +260,16 @@ def cohort_analysis(cohort_name):
     """, (cohort_name,))
     
     stats = cur.fetchone()
-    cur.close(); conn.close()
+    cur.close()
+    release_db(conn)
+
     
     # Returns the 'Pulse' of the cohort
     return jsonify({
         "labels": ["Leadership", "Strategy", "Finance", "Marketing", "Operations", "Impact"],
         "averages": [float(x) if x else 0 for x in stats]
     })
+
 
 @app.route("/")
 @login_required
@@ -260,58 +281,78 @@ def dashboard():
         cohort = request.args.get("cohort", "All")
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
+        # Updated JOIN logic inside your dashboard() function
+        # Replace the query variable in your dashboard() function with this:
         query = """
             SELECT 
                 c.*, 
                 COALESCE(
-                    ARRAY_AGG(s.survey_number)
-                    FILTER (WHERE s.survey_number IS NOT NULL),
+                    ARRAY_AGG(DISTINCT s.survey_number) 
+                    FILTER (WHERE s.survey_number IS NOT NULL), 
                     '{}'
-                ) AS completed_surveys
+                ) AS completed_surveys,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT a.session_number) 
+                    FILTER (WHERE a.session_number IS NOT NULL), 
+                    '{}'
+                ) AS attended_sessions
             FROM cohort_candidates c
+            
+            -- Match Surveys by Email OR Name OR Phone
             LEFT JOIN survey_submissions s
-              ON LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email))
+            ON (LOWER(TRIM(c.email)) = LOWER(TRIM(s.respondent_email)) AND c.email <> '')
+            OR (LOWER(TRIM(c.client)) = LOWER(TRIM(s.respondent_name)))
+            OR (TRIM(c.phone) = TRIM(s.respondent_phone) AND c.phone <> '')
+            
+            -- Match Attendance by Email OR Name OR Phone
+            LEFT JOIN attendance_records a
+            ON (LOWER(TRIM(c.email)) = LOWER(TRIM(a.email)) AND c.email <> '')
+            OR (LOWER(TRIM(c.client)) = LOWER(TRIM(a.name)))
+            OR (TRIM(c.phone) = TRIM(a.phone) AND c.phone <> '')
+            
             WHERE (%s = 'All' OR c.cohort = %s)
             GROUP BY c.id
             ORDER BY c.client ASC
         """
+
+        # We explicitly join c.email with a.email
         cur.execute(query, (cohort, cohort))
         rows = cur.fetchall()
 
         attendance_trend = [0] * 6
+        attendance_totals = [0] * 6
         avg_stats = {"q1": 0, "q2": 0}
         recent_comments = []
 
         if cohort != "All":
+            # 1. Survey Data (Red Bars)
             cur.execute("""
-                SELECT survey_number, COUNT(*)
-                FROM survey_submissions
-                WHERE cohort_tag = %s
-                GROUP BY survey_number
+                SELECT survey_number, COUNT(*) FROM survey_submissions
+                WHERE cohort_tag = %s GROUP BY survey_number
             """, (cohort,))
             for survey_num, count in cur.fetchall():
                 if 1 <= survey_num <= 6:
                     attendance_trend[survey_num - 1] = count
 
+            # 2. Attendance Data (Blue Bars)
             cur.execute("""
-                SELECT AVG(q1), AVG(q2)
-                FROM survey_submissions
-                WHERE cohort_tag = %s
+                SELECT session_number, COUNT(*) FROM attendance_records
+                WHERE cohort = %s GROUP BY session_number
             """, (cohort,))
+            for sess_num, count in cur.fetchall():
+                if 1 <= sess_num <= 6:
+                    attendance_totals[sess_num - 1] = count
+
+            # 3. Sentiment Stats
+            cur.execute("SELECT AVG(q1), AVG(q2) FROM survey_submissions WHERE cohort_tag = %s", (cohort,))
             stat_row = cur.fetchone()
             if stat_row and stat_row[0] is not None:
-                avg_stats = {
-                    "q1": round(stat_row[0], 1),
-                    "q2": round(stat_row[1], 1)
-                }
+                avg_stats = {"q1": round(stat_row[0], 1), "q2": round(stat_row[1], 1)}
 
+            # 4. Key Learnings Feed
             cur.execute("""
-                SELECT key_learnings, apply_plan
-                FROM survey_submissions
-                WHERE cohort_tag = %s
-                ORDER BY submitted_at DESC
-                LIMIT 5
+                SELECT key_learnings, apply_plan FROM survey_submissions
+                WHERE cohort_tag = %s ORDER BY submitted_at DESC LIMIT 5
             """, (cohort,))
             recent_comments = cur.fetchall()
 
@@ -320,15 +361,39 @@ def dashboard():
             rows=rows,
             cohort=cohort,
             attendance_trend=attendance_trend,
+            attendance_totals=attendance_totals,
             stats=avg_stats,
             comments=recent_comments
         )
 
     finally:
-        if cur:
-            cur.close()
-        if conn:
-            release_conn(conn)
+        if cur: cur.close()
+        if conn: release_db(conn)
+
+def load_tabular_file(file):
+    import pandas as pd
+    import io
+
+    filename = file.filename.lower()
+    file_bytes = file.read()
+    
+    if filename.endswith(".csv"):
+        # We try skipping the first 9 rows to get past the Teams Summary metadata
+        try:
+            # Try reading with skiproms=9 for Teams formats
+            return pd.read_csv(io.BytesIO(file_bytes), encoding="utf-16", sep='\t', skiprows=9)
+        except Exception:
+            try:
+                # Fallback for standard CSVs if skiprows fails
+                return pd.read_csv(io.BytesIO(file_bytes), encoding="utf-8-sig")
+            except Exception as e:
+                raise ValueError(f"Could not parse CSV: {e}")
+
+    elif filename.endswith((".xlsx", ".xls")):
+        # For Excel files, we also skip the first 9 rows of metadata
+        return pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl', skiprows=9)
+    
+    raise ValueError("Unsupported file format.")
 
 def get_clean_row_val(row_dict, possible_names):
     """Fuzzy-matches columns and preserves long ID/CIPC numbers from scientific notation."""
@@ -371,103 +436,72 @@ def ultimate_id_fix(val):
         return val
 
 
-@app.route("/upload/<cohort_context>", methods=["POST"])
-def upload(cohort_context):
-    file = request.files.get("file")
+@app.route("/upload_attendance/<int:session_num>", methods=["POST"])
+def upload_attendance(session_num):
+    cohort = request.args.get('cohort')
+    file = request.files.get('attendance_file')
+    
     if not file:
-        return redirect(url_for("dashboard", cohort=cohort_context))
-
-    conn = psycopg2.connect(NEON_DATABASE_URL)
-    cur = conn.cursor()
+        flash("No file selected.")
+        return redirect(url_for('dashboard', cohort=cohort))
 
     try:
-        # ---- LOAD FILE AS STRINGS (prevents scientific notation issues) ----
-        if file.filename.lower().endswith(".csv"):
-            raw = file.read().decode("utf-8", errors="ignore")
-            df = pd.read_csv(StringIO(raw), sep=None, engine="python", dtype=str)
-        else:
-            df = pd.read_excel(file, engine="openpyxl", dtype=str)
-
-        # ---- NORMALIZE DATAFRAME ----
+        # 1. Load file with Teams-specific logic (skipping metadata)
+        df = load_tabular_file(file) 
         df.columns = [str(c).strip().lower() for c in df.columns]
-        df = df.dropna(how="all")
+        
+        name_col = next((c for c in df.columns if 'name' in c), None)
+        email_col = next((c for c in df.columns if 'email' in c or 'principal' in c), None)
+        phone_col = next((c for c in df.columns if any(p in c for p in ['phone', 'contact', 'mobile'])), None)
 
-        raw_rows = []
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
+        cur.execute("SELECT client, email, phone FROM cohort_candidates WHERE cohort = %s", (cohort,))
+        db_candidates = cur.fetchall()
+
+        matched_count = 0
+        
         for _, row in df.iterrows():
-            row_dict = row.to_dict()
+            up_name = str(row.get(name_col, '')).strip().lower()
+            up_email = str(row.get(email_col, '')).strip().lower() if email_col else ""
+            up_phone = ''.join(filter(str.isdigit, str(row.get(phone_col, ''))))
 
-            # A. COHORT / MENTORSHIP DAY MAPPING
-            raw_source = get_clean_row_val(row_dict, ["source"])
-            digit_match = re.search(r"\d", str(raw_source))
-            m_digit = digit_match.group(0) if digit_match else None
-            assigned_day = MENTORSHIP_MAP.get(m_digit, "Unassigned")
-
-            # B. ID NUMBER (CRITICAL)
-            id_num = get_clean_row_val(row_dict, ["id number", "id_number", "id"])
-            if not id_num or id_num.lower() == "id number":
+            if not up_name and not up_email and not up_phone:
                 continue
 
-            # Normalize ID
-            id_num = str(id_num).strip().replace(".0", "")
+            for cand in db_candidates:
+                db_name = str(cand['client']).strip().lower()
+                db_email = str(cand['email']).strip().lower() if cand['email'] else ""
+                db_phone = ''.join(filter(str.isdigit, str(cand['phone']))) if cand['phone'] else ""
+                
+                is_match = False
+                if up_email and up_email == db_email: is_match = True
+                elif up_name and up_name == db_name: is_match = True
+                elif up_phone and up_phone == db_phone: is_match = True
 
-            raw_rows.append((
-                assigned_day,                                      # cohort
-                get_clean_row_val(row_dict, ["client"]),
-                get_clean_row_val(row_dict, ["primary contact", "primary cont"]),
-                get_clean_row_val(row_dict, ["email"]),
-                get_clean_row_val(row_dict, ["phone", "cell"]),
-                id_num,                                            # id_number
-                get_clean_row_val(row_dict, ["cipc number", "cipc"]),
-                get_clean_row_val(row_dict, ["tier"]),
-                raw_source,
-                get_clean_row_val(row_dict, ["contactability", "comment", "comments"])
-            ))
-
-        # ---- DEDUPE BY (cohort, id_number) ----
-        deduped = {}
-        for row in raw_rows:
-            key = (row[0], row[5])  # (cohort, id_number)
-            deduped[key] = row     # last occurrence wins
-
-        data_to_insert = list(deduped.values())
-
-        # ---- UPSERT ----
-        if data_to_insert:
-            execute_values(
-                cur,
-                """
-                INSERT INTO cohort_candidates (
-                    cohort, client, primary_contact, email, phone,
-                    id_number, cipc_number, tier, source, comment
-                ) VALUES %s
-                ON CONFLICT (cohort, id_number) DO UPDATE SET
-                    client = EXCLUDED.client,
-                    primary_contact = EXCLUDED.primary_contact,
-                    email = EXCLUDED.email,
-                    phone = EXCLUDED.phone,
-                    cipc_number = EXCLUDED.cipc_number,
-                    tier = EXCLUDED.tier,
-                    source = EXCLUDED.source,
-                    comment = EXCLUDED.comment
-                """,
-                data_to_insert
-            )
+                if is_match:
+                    # CORRECT TABLE: attendance_records
+                    # We save name/phone/email so the Dashboard JOIN can find it
+                    cur.execute("""
+                        INSERT INTO attendance_records 
+                        (email, name, phone, session_number, cohort)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                    """, (cand['email'], cand['client'], cand['phone'], session_num, cohort))
+                    matched_count += 1
+                    break 
 
         conn.commit()
-        flash(f"Sync Complete: {len(data_to_insert)} candidates processed.")
+        cur.close()
+        release_db(conn)
+        
+        flash(f"Attendance recorded for {matched_count} participants.")
 
     except Exception as e:
-        conn.rollback()
         flash(f"Error: {str(e)}")
-
-    finally:
-        cur.close()
-        conn.close()
-
-    return redirect(url_for("dashboard", cohort=cohort_context))
-
-
+    
+    return redirect(url_for('dashboard', cohort=cohort))
 
 @app.route('/survey/<cohort>/<session_id>', methods=['GET', 'POST'])
 def handle_survey(cohort, session_id):
@@ -599,7 +633,9 @@ def update_comment():
     except Exception as e:
         return {"status": "error", "message": str(e)}, 500
     finally:
-        cur.close(); conn.close()
+        cur.close()
+        release_db(conn)
+
 
 if __name__ == "__main__":    
     app.run(debug=False)

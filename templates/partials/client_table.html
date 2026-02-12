@@ -1,17 +1,18 @@
 <style>
 /* Container that locks the scrollbar to the screen */
 .table-responsive {
-    max-height: 70vh; /* Keeps the scroller visible on the screen */
+    max-height: 70vh; 
     overflow: auto;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     position: relative;
+    background: white;
 }
 
 /* The Blue Scroller Styling */
 .table-responsive::-webkit-scrollbar {
-    height: 12px; /* Horizontal scroller thickness */
-    width: 8px;   /* Vertical scroller thickness */
+    height: 12px; 
+    width: 8px;   
 }
 
 .table-responsive::-webkit-scrollbar-track {
@@ -20,98 +21,116 @@
 }
 
 .table-responsive::-webkit-scrollbar-thumb {
-    background: #2563eb; /* Royal Blue */
+    background: #2563eb; 
     border-radius: 10px;
-    border: 2px solid #f1f5f9; /* Creates a clean padding effect */
+    border: 2px solid #f1f5f9;
 }
 
 .table-responsive::-webkit-scrollbar-thumb:hover {
-    background: #1d4ed8; /* Darker blue on hover */
+    background: #1d4ed8;
+}
+
+.email-blue { color: #2563eb; text-decoration: none; font-weight: 500; }
+
+.badge-updated { 
+    background: #f3e8ff; 
+    color: #7e22ce; 
+    font-size: 0.6rem; 
+    padding: 2px 6px; 
+    border-radius: 4px; 
+    margin-left: 8px; 
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+/* Enforce single line for all cells */
+.table td, .table th {
+    white-space: nowrap !important;
+    vertical-align: middle;
 }
 </style>
 
-<div class="table-responsive" style="overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; background: white; position: relative;">
-    <table class="table" style="width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1600px;"> 
-            <thead>
-                <tr style="background: #f8fafc;">
-                    <th style="padding: 16px; position: sticky; left: 0; top: 0; background: #f8fafc; z-index: 45; width: 50px; border-bottom: 2px solid #e2e8f0;">#</th>
-                    
-                    <th style="padding: 16px; position: sticky; left: 50px; top: 0; background: #f8fafc; z-index: 45; width: 250px; border-bottom: 2px solid #e2e8f0;">Client Name</th>
-                    
-                    <th style="padding: 16px; position: sticky; left: 300px; top: 0; background: #f8fafc; z-index: 45; width: 200px; border-bottom: 2px solid #e2e8f0; border-right: 2px solid #e2e8f0;">Primary Contact</th>
-                    
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Phone Number</th>
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Email Address</th>
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">ID Number</th>
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Progress</th>
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; text-align: right; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Tier</th>
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; white-space: nowrap; text-align: right; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">WhatsApp</th>
-                    <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: left; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Admin Comments</th>
-                </tr>
-            </thead>
+<div class="table-responsive">
+    <table class="table" style="width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1700px;"> 
+        <thead>
+            <tr style="background: #f8fafc;">
+                <th style="padding: 16px; position: sticky; left: 0; top: 0; background: #f8fafc; z-index: 50; width: 50px; border-bottom: 2px solid #e2e8f0;">#</th>
+                <th style="padding: 16px; position: sticky; left: 50px; top: 0; background: #f8fafc; z-index: 50; width: 250px; border-bottom: 2px solid #e2e8f0;">Client Name</th>
+                <th style="padding: 16px; position: sticky; left: 300px; top: 0; background: #f8fafc; z-index: 50; width: 200px; border-bottom: 2px solid #e2e8f0; border-right: 2px solid #e2e8f0;">Primary Contact</th>
+                
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Phone Number</th>
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Email Address</th>
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">ID Number</th>
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Progress</th>
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Tier</th>
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: center; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">WhatsApp</th>
+                <th style="padding: 16px; position: sticky; top: 0; background: #f8fafc; z-index: 40; border-bottom: 2px solid #e2e8f0; text-align: left; color: #64748b; font-size: 0.7rem; text-transform: uppercase;">Admin Comments</th>
+            </tr>
+        </thead>
 
         <tbody>
             {% for row in rows %}
             <tr class="table-row">
+                <td style="padding: 16px; color: #94a3b8; position: sticky; left: 0; background: white; z-index: 10; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9;">{{ loop.index }}</td>
                 
-                <td style="padding: 16px; color: #94a3b8; position: sticky; left: 0; background: white; z-index: 10; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">{{ loop.index }}</td>
-                
-                <td style="padding: 16px; font-weight: 700; color: #1e293b; position: sticky; left: 50px; background: white; z-index: 10; border-bottom: 1px solid #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;" title="{{ row.client }}">
-                    <div style="display: flex; align-items: center;">
-                        <span style="overflow: hidden; text-overflow: ellipsis;">{{ row.client }}</span>
+                <td style="padding: 16px; font-weight: 700; color: #1e293b; position: sticky; left: 50px; background: white; z-index: 10; border-bottom: 1px solid #f1f5f9; overflow: hidden; text-overflow: ellipsis; max-width: 250px;" title="{{ row.client }}">
+                    <div style="display: flex; align-items: center; white-space: nowrap;">
+                        <span style="overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;">{{ row.client }}</span>
                         {% if row.comment == 'Enriched' %}
                             <span class="badge-updated">Updated</span>
                         {% endif %}
                     </div>
                 </td>
 
-                <td style="padding: 16px; font-size: 0.9rem; color: #334155; position: sticky; left: 300px; background: white; z-index: 10; border-bottom: 1px solid #f1f5f9; white-space: nowrap; border-right: 2px solid #e2e8f0;">
+                <td style="padding: 16px; font-size: 0.9rem; color: #334155; position: sticky; left: 300px; background: white; z-index: 10; border-bottom: 1px solid #f1f5f9; border-right: 2px solid #e2e8f0;">
                     {{ row.primary_contact if row.primary_contact else '-' }}
                 </td>
                 
-                <td style="padding: 16px; font-size: 0.9rem; color: #475569; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">{{ row.phone }}</td>
-                
-                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
-                    <span class="email-blue">{{ row.email }}</span>
-                </td>
-                
-                <td style="padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #64748b; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">{{ row.id_number }}</td>
-                
+                <td style="padding: 16px; font-size: 0.9rem; color: #475569; border-bottom: 1px solid #f1f5f9;">{{ row.phone }}</td>
+                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9;"><span class="email-blue">{{ row.email }}</span></td>
+                <td style="padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #64748b; border-bottom: 1px solid #f1f5f9;">{{ row.id_number }}</td>
+                                
                 <td onclick='openCandidateProfile("{{ row.email }}", "{{ row.client }}")'
-                    style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; cursor: pointer;">
-                    <div style="display: flex; gap: 4px; justify-content: center;">
+                    style="padding: 16px; border-bottom: 1px solid #f1f5f9; cursor: pointer;">
+                    <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
                         {% for i in range(1, 7) %}
-                            {% set is_done = row.completed_surveys and i in row.completed_surveys %}
-                            <span style="width: 8px; height: 8px; border-radius: 50%; background: {{ '#ef4444' if is_done else '#e2e8f0' }}; display: inline-block;"></span>
+                            {% set is_surveyed = row.completed_surveys and i in row.completed_surveys %}
+                            {% set is_attended = row.attended_sessions and i in row.attended_sessions %}
+                            
+                            <span style="width: 10px; height: 10px; border-radius: 50%; 
+                                background: {% if is_surveyed %}#ef4444{% elif is_attended %}#2563eb{% else %}#e2e8f0{% endif %}; 
+                                display: inline-block; flex-shrink: 0;"
+                                title="{% if is_surveyed %}Surveyed{% elif is_attended %}Attended Only{% else %}Absent{% endif %}">
+                            </span>
                         {% endfor %}
                     </div>
                 </td>
 
-                <td style="padding: 16px; text-align: right; border-bottom: 1px solid #f1f5f9; white-space: nowrap;">
-                    <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; white-space: nowrap;">
+                <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9;">
+                    <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; display: inline-block;">
                         {{ row.tier if row.tier else 'STANDARD' }}
                     </span>
                 </td>
 
-                <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9; white-space: nowrap;" onclick="event.stopPropagation()">
+                <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9;" onclick="event.stopPropagation()">
                     <button onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}')" 
-                        style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer;">
+                        style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer; flex-shrink: 0;">
                         SEND
                     </button>
                 </td>
 
-                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;" onclick="event.stopPropagation()">
+                <td style="padding: 16px; border-bottom: 1px solid #f1f5f9;" onclick="event.stopPropagation()">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <input type="text" 
                             id="comment-{{ row.id_number }}"
                             value="{{ row.admin_notes if row.admin_notes else '' }}" 
                             placeholder="Add note..."
-                            style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; width: 220px; outline: none; transition: 0.2s;"
+                            style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; width: 220px; outline: none; transition: 0.2s; flex-shrink: 0;"
                             onfocus="this.style.borderColor='#2563eb'"
                             onblur="this.style.borderColor='#e2e8f0'">
                         
                         <button onclick="saveComment('{{ row.id_number }}', document.getElementById('comment-{{ row.id_number }}').value, this)" 
-                            style="background: #2563eb; color: white; border: none; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink: 0;"
+                            style="background: #2563eb; color: white; border: none; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink: 0;"
                             title="Save Comment">
                             <svg style="width: 14px; height: 14px; fill: none; stroke: white; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24">
                                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -119,7 +138,6 @@
                         </button>
                     </div>
                 </td>
-                
             </tr>
             {% endfor %}
         </tbody>

@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
-        /* Visual refinements and Guest specific styling */
+        /* Visual refinements */
         .chart-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 15px; font-weight: 700; }
         .feed-item { padding: 12px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
         .feed-item:hover { background: #f8fafc; }
@@ -15,12 +15,9 @@
         .progress-bg { background: #f1f5f9; height: 8px; border-radius: 10px; overflow: hidden; margin-top: 4px; }
         .progress-fill { height: 100%; transition: width 0.5s ease-in-out; }
         .table-responsive { position: relative; }
-        .survey-dots span { transition: transform 0.2s; }
-        .survey-dots span:hover { transform: scale(1.3); cursor: help; }
         .dot.guest { background: #64748b; }
         .nav-btn.active .dot.guest { background: #fff; }
         
-        /* New Purple Badge Styling for Enriched Data */
         .badge-purple {
             background: #f3e8ff; 
             color: #7e22ce;      
@@ -33,11 +30,9 @@
             border: 1px solid #d8b4fe;
             display: inline-flex;
             align-items: center;
-            vertical-align: middle;
         }
 
-        /* Hover effect for frozen columns */
-        .table-row:hover td { background-color: #fff1f1 !important; }
+        .table-row:hover td { background-color: #f8fafc !important; }
     </style>
 </head>
 <body class="app-bg">
@@ -89,9 +84,31 @@
     {% endwith %}
 
     {% if cohort != 'All' %}
-    <div class="analytics-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+    <div class="data-card" style="margin-bottom: 24px; background: #f8fafc; border-left: 5px solid #2563eb; padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 class="chart-label" style="color: #2563eb; margin-bottom: 0;">Teams Attendance Sync (Sessions 1-6)</h3>
+            <span style="font-size: 0.7rem; color: #64748b; font-weight: 600;">UPLOAD TEAMS EXPORT (.CSV / .XLSX)</span>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            {% for i in range(1, 7) %}
+            <form action="/upload_attendance/{{ i }}?cohort={{ cohort }}" method="POST" enctype="multipart/form-data" id="form-attn-{{ i }}">
+                <input type="file" name="attendance_file" id="attn-{{ i }}" hidden onchange="document.getElementById('form-attn-{{ i }}').submit()">
+                <label for="attn-{{ i }}" class="nav-btn" style="padding: 8px 14px; background: white; border: 1px solid #e2e8f0; color: #1e293b; font-size: 0.75rem; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 8px; height: 8px; background: #2563eb; border-radius: 50%;"></span>
+                    Session {{ i }}
+                </label>
+            </form>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="analytics-row" style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.8fr; gap: 20px; margin-bottom: 24px;">
         <div class="data-card" style="padding: 20px;">
-            <h3 class="chart-label">Attendance Tracker</h3>
+            <h3 class="chart-label">Engagement Depth (Attended vs Surveyed)</h3>
+            <div id="engagementDepthChart"></div>
+        </div>
+        <div class="data-card" style="padding: 20px;">
+            <h3 class="chart-label">Survey Volume</h3>
             <div id="attendanceTrendChart"></div>
         </div>
         <div class="data-card" style="padding: 20px;">
@@ -119,68 +136,24 @@
             </div>
             {% endfor %}
             {% if not comments %}
-            <p style="text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 20px;">No survey responses yet for this cohort.</p>
+            <p style="text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 20px;">No survey responses yet.</p>
             {% endif %}
         </div>
     </div>
-<div style="margin-bottom: 25px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-    <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 10px;">
-        <div style="background: #25d366; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-            <svg style="width: 18px; fill: white;" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.588-5.946 0-6.556 5.332-11.891 11.891-11.891 3.181 0 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.231 3.481 8.403 0 6.556-5.332 11.891-11.891 11.891-2.007 0-3.982-.51-5.735-1.474l-6.259 1.692zm6.21-4.412l.348.206c1.517.899 3.256 1.373 5.042 1.373 5.309 0 9.631-4.322 9.631-9.631 0-2.573-1.001-4.991-2.82-6.81-1.817-1.817-4.234-2.817-6.81-2.817-5.31 0-9.632 4.322-9.632 9.631 0 1.936.582 3.823 1.684 5.438l.227.333-1.007 3.676 3.77-.999z"/></svg>
+
+    <div style="margin-bottom: 25px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <div style="display: flex; align-items: center; margin-bottom: 12px; gap: 10px;">
+            <div style="background: #25d366; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <svg style="width: 18px; fill: white;" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.588-5.946 0-6.556 5.332-11.891 11.891-11.891 3.181 0 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.231 3.481 8.403 0 6.556-5.332 11.891-11.891 11.891-2.007 0-3.982-.51-5.735-1.474l-6.259 1.692zm6.21-4.412l.348.206c1.517.899 3.256 1.373 5.042 1.373 5.309 0 9.631-4.322 9.631-9.631 0-2.573-1.001-4.991-2.82-6.81-1.817-1.817-4.234-2.817-6.81-2.817-5.31 0-9.632 4.322-9.632 9.631 0 1.936.582 3.823 1.684 5.438l.227.333-1.007 3.676 3.77-.999z"/></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #1e293b;">WhatsApp Automation Drafter</h3>
         </div>
-        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #1e293b;">WhatsApp Automation Drafter</h3>
+        <textarea id="whatsappTemplate" 
+            style="width: 100%; height: 60px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; resize: none; outline: none;" 
+            placeholder="Hello {name}, ..."
+            oninput="localStorage.setItem('whatsapp_pretext', this.value)"></textarea>
     </div>
-    <textarea id="whatsappTemplate" 
-        style="width: 100%; height: 60px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 0.9rem; resize: none; outline: none;" 
-        placeholder="Hello {name}, ..."
-        oninput="localStorage.setItem('whatsapp_pretext', this.value)"></textarea>
-</div>
 
-<script>
-// Load saved message on boot
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('whatsappTemplate').value = localStorage.getItem('whatsapp_pretext') || "";
-});
-
-function sendWhatsApp(phone, name) {
-    let template = document.getElementById('whatsappTemplate').value;
-    if (!template) return alert("Type a message first!");
-    
-    let cleanPhone = phone.replace(/\D/g, '');
-    let finalMsg = encodeURIComponent(template.replace(/{name}/g, name));
-    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${finalMsg}`, '_blank');
-}
-function saveComment(idNumber, text, btnElement) {
-    // Immediate visual feedback: change button to loading state
-    const originalBg = btnElement.style.background;
-    const originalSvg = btnElement.innerHTML;
-    
-    fetch('/update_comment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_number: idNumber, comment: text })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // Success Feedback: Turn Green
-            btnElement.style.background = "#10b981"; 
-            setTimeout(() => {
-                btnElement.style.background = originalBg;
-            }, 1000);
-        } else {
-            // Error Feedback: Turn Red
-            btnElement.style.background = "#ef4444";
-            alert('Error saving comment: ' + data.message);
-            setTimeout(() => { btnElement.style.background = originalBg; }, 2000);
-        }
-    })
-    .catch(err => {
-        btnElement.style.background = "#ef4444";
-        console.error('Save failed:', err);
-    });
-}
-</script>
     <div class="data-card" style="padding: 20px; margin-bottom: 24px; border-left: 5px solid #ef4444;">
         <h3 class="chart-label" style="margin-bottom: 10px;">Session Distribution Tool</h3>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -200,16 +173,14 @@ function saveComment(idNumber, text, btnElement) {
     </div>
 </div>
 
-
 <div id="sideDrawer" class="drawer">
     <div class="drawer-header" style="display: flex; align-items: center; gap: 16px; padding: 20px; border-bottom: 1px solid #f1f5f9;">
-        <button onclick="closeDrawer()" class="close-btn-premium" style="background: #f1f5f9; color: #64748b;">&times;</button>
+        <button onclick="closeDrawer()" class="close-btn-premium" style="background: #f1f5f9; color: #64748b; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;">&times;</button>
         <div class="header-info">
             <h2 id="drawerName" style="margin: 0; font-size: 1.1rem; font-weight: 700;">Candidate Profile</h2>
             <span id="drawerEmail" style="color: #64748b; font-size: 0.8rem;"></span>
         </div>
     </div>
-
     <div class="drawer-content" style="padding: 20px;">
         <div class="survey-tabs" style="display: flex; gap: 6px; margin-bottom: 20px;">
             {% for i in range(1, 7) %}
@@ -218,20 +189,17 @@ function saveComment(idNumber, text, btnElement) {
                     onclick="fetchSurvey({{ i }})">S{{ i }}</button>
             {% endfor %}
         </div>
-        
-        <div id="surveyDetailsArea">
-            <div id="questionsList">
-                <p style="color: #94a3b8; text-align: center; margin-top: 40px;">Select a session to view detailed feedback</p>
-            </div>
+        <div id="questionsList">
+            <p style="color: #94a3b8; text-align: center; margin-top: 40px;">Select a session to view feedback</p>
         </div>
     </div>
 </div>
-
 <div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
 
 <script>
 let currentEmail = null;
 
+// Table Filtering
 function filterTable() {
     let input = document.getElementById("crmSearch");
     let filter = input.value.toUpperCase();
@@ -242,6 +210,36 @@ function filterTable() {
     });
 }
 
+// WhatsApp & Comment Functions
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('whatsappTemplate').value = localStorage.getItem('whatsapp_pretext') || "";
+});
+
+function sendWhatsApp(phone, name) {
+    let template = document.getElementById('whatsappTemplate').value;
+    if (!template) return alert("Type a message first!");
+    let cleanPhone = phone.replace(/\D/g, '');
+    let finalMsg = encodeURIComponent(template.replace(/{name}/g, name));
+    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${finalMsg}`, '_blank');
+}
+
+function saveComment(idNumber, text, btnElement) {
+    const originalBg = btnElement.style.background;
+    fetch('/update_comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_number: idNumber, comment: text })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            btnElement.style.background = "#10b981"; 
+            setTimeout(() => { btnElement.style.background = originalBg; }, 1000);
+        }
+    });
+}
+
+// Drawer Logic
 function openCandidateProfile(email, name) {
     currentEmail = email;
     document.getElementById('drawerName').innerText = name;
@@ -258,46 +256,28 @@ function closeDrawer() {
 
 async function fetchSurvey(num) {
     document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
-    const tab = document.getElementById(`tab-s${num}`);
-    if(tab) tab.classList.add('active');
-
+    document.getElementById(`tab-s${num}`).classList.add('active');
     try {
-        const response = await fetch(`/api/surveys/${encodeURIComponent(currentEmail)}/${num}`);
-        const data = await response.json();
+        const r = await fetch(`/api/surveys/${encodeURIComponent(currentEmail)}/${num}`);
+        const data = await r.json();
         renderIndividualScores(data.scores, data.feedback);
-    } catch (e) {
-        console.error("Fetch Error:", e);
-        renderIndividualScores([0, 0], null);
-    }
+    } catch (e) { renderIndividualScores([0, 0], null); }
 }
 
 function renderIndividualScores(scores, feedback) {
     const container = document.getElementById('questionsList');
-    const labels = ["Quality", "Relevance"];
-    
-    let html = labels.map((l, i) => `
+    let html = ["Quality", "Relevance"].map((l, i) => `
         <div style="margin-bottom: 15px;">
             <div style="display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600;">
                 <span>${l}</span><span>${scores[i] || 0}/5</span>
             </div>
-            <div class="progress-bg">
-                <div class="progress-fill" style="width: ${(scores[i] || 0) * 20}%; background: #ef4444;"></div>
-            </div>
+            <div class="progress-bg"><div class="progress-fill" style="width: ${(scores[i] || 0) * 20}%; background: #ef4444;"></div></div>
         </div>
     `).join('');
-
-    if (feedback && feedback.key_learnings && feedback.key_learnings !== "None") {
-        html += `
-            <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
-                <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Key Learnings</h4>
-                <p style="font-size: 0.85rem; color: #1e293b; margin-bottom: 15px; font-style: italic;">"${feedback.key_learnings}"</p>
-                
-                <h4 style="font-size: 0.7rem; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Application Plan</h4>
-                <p style="font-size: 0.85rem; color: #1e293b;">${feedback.apply_plan || 'No plan provided'}</p>
-            </div>
-        `;
-    } else {
-        html += `<p style="text-align: center; color: #94a3b8; font-size: 0.85rem; margin-top: 30px;">No data recorded for this session.</p>`;
+    if (feedback && feedback.key_learnings) {
+        html += `<div style="margin-top:20px; padding:15px; background:#f8fafc; border-left:4px solid #ef4444; font-size:0.85rem;">
+                    <strong>Learnings:</strong><p>"${feedback.key_learnings}"</p>
+                    <strong>Plan:</strong><p>${feedback.apply_plan}</p></div>`;
     }
     container.innerHTML = html;
 }
@@ -311,36 +291,43 @@ function copySurveyLink(cohort, session) {
     });
 }
 
+// Analytics Charts
 {% if cohort != 'All' %}
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Attendance Tracker
+    // 1. Engagement Depth (Blue vs Red)
+    new ApexCharts(document.querySelector("#engagementDepthChart"), {
+        series: [
+            { name: 'Attended (Teams)', data: {{ attendance_totals|tojson if attendance_totals else [0,0,0,0,0,0] }} },
+            { name: 'Surveyed (Forms)', data: {{ attendance_trend|tojson if attendance_trend else [0,0,0,0,0,0] }} }
+        ],
+        chart: { type: 'bar', height: 180, toolbar: {show: false} },
+        colors: ['#2563eb', '#ef4444'],
+        plotOptions: { bar: { borderRadius: 4, columnWidth: '55%' } },
+        xaxis: { categories: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'] },
+        legend: { position: 'top', fontSize: '10px' }
+    }).render();
+
+    // 2. Survey Volume (Red Trend)
     new ApexCharts(document.querySelector("#attendanceTrendChart"), {
         series: [{ name: 'Participants', data: {{ attendance_trend|tojson if attendance_trend else [0,0,0,0,0,0] }} }],
         chart: { type: 'area', height: 180, toolbar: {show: false} },
         colors: ['#ef4444'],
         stroke: { curve: 'smooth', width: 2 },
-        xaxis: { categories: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'] },
-        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05 } }
+        xaxis: { categories: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'] }
     }).render();
 
-    // 2. Sentiment Radar (Updated to 2 points)
+    // 3. Sentiment Radar
     new ApexCharts(document.querySelector("#sentimentRadarChart"), {
-        series: [{
-            name: 'Avg Score',
-            data: [
-                {{ stats.q1 if stats.q1 else 0 }}, 
-                {{ stats.q2 if stats.q2 else 0 }}
-            ]
-        }],
+        series: [{ name: 'Avg Score', data: [{{ stats.q1 }}, {{ stats.q2 }}] }],
         chart: { type: 'radar', height: 180, toolbar: {show: false} },
         xaxis: { categories: ['Quality', 'Relevance'] },
         colors: ['#ef4444'],
         yaxis: { max: 5, show: false }
     }).render();
 
-    // 3. Response Gauge
-    const totalCount = {{ rows|length if rows else 1 }};
-    const sumAttend = {{ attendance_trend|sum if attendance_trend else 0 }};
+    // 4. Response Gauge
+    const totalCount = {{ rows|length }};
+    const sumAttend = {{ attendance_trend|sum }};
     const completedCount = Math.round(sumAttend / 6);
     new ApexCharts(document.querySelector("#responseGaugeChart"), {
         series: [completedCount, Math.max(0, totalCount - completedCount)],

@@ -269,22 +269,41 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 
-function saveComment(idNumber, text, btnElement) {
-    const originalBg = btnElement.style.background;
+function saveComment(idNumber, text, btn) {
+    // Reference the original color so we can switch back
+    const originalBg = btn.style.background;
+
     fetch('/update_comment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_number: idNumber, comment: text })
+        body: JSON.stringify({ 
+            id_number: idNumber, 
+            comment: text 
+        })
     })
-    .then(r => r.json())
+    .then(response => response.json())
     .then(data => {
-        if (data.status === 'success') {
-            btnElement.style.background = "#10b981"; 
-            setTimeout(() => { btnElement.style.background = originalBg; }, 1000);
+        if (data.status === "success") {
+            // Flash Green for success
+            btn.style.background = "#22c55e"; 
+            
+            // Optional: change the icon inside if you want
+            const svg = btn.querySelector('svg');
+            if(svg) svg.style.stroke = "white";
+
+            // Switch back to original blue after 1.5 seconds
+            setTimeout(() => {
+                btn.style.background = originalBg;
+            }, 1500);
+        } else {
+            alert("Error saving: " + data.message);
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.style.background = "#ef4444"; // Flash Red on failure
     });
 }
-
 function openCandidateProfile(email, name) {
     currentEmail = email;
     document.getElementById('drawerName').innerText = name;

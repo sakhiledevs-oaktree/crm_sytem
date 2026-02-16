@@ -760,60 +760,78 @@ def update_comment():
 
 @app.route("/webinar")
 def webinar_landing():
+    """Step 1: The Landing Page"""
     return render_template("webinar_landing.html")
 
-@app.route("/webinar/register", methods=["POST"])
-def webinar_register():
-    # Defined your WhatsApp cohort links here
-    WHATSAPP_LINKS = {
-        "Monday": "https://chat.whatsapp.com/MondayGroupLink",
-        "Tuesday": "https://chat.whatsapp.com/TuesdayGroupLink",
-        "Wednesday": "https://chat.whatsapp.com/WednesdayGroupLink",
-        "Thursday": "https://chat.whatsapp.com/ThursdayGroupLink",
-        "Guest": "https://chat.whatsapp.com/GuestGroupLink"
+@app.route("/webinar/register-form")
+def webinar_form():
+    """Step 2: The Registration Form"""
+    return render_template("webinar_form.html")
+
+
+WHATSAPP_LINKS = {
+    "Monday": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c",
+    "Tuesday": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c",
+    "Wednesday": "https://chat.whatsapp.com/FHlfIbAkwaQ8nNnlhYzPUB?mode=gi_c",
+    "Thursday": "https://chat.whatsapp.com/H7OBmKlsw2LCGSrxlHn6BS?mode=gi_c",
+    "Guest": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c"
     }
+@app.route("/webinar/process", methods=["POST"])
+def webinar_process():
     # 1. Capture Form Data
-    name = request.form.get("name")
+    first_name = request.form.get("name")
     surname = request.form.get("surname")
     email = request.form.get("email").lower().strip()
-    company = request.form.get("company")
+    company_name = request.form.get("company") # This will go into 'client'
     phone = request.form.get("phone")
-    full_name = f"{name} {surname}"
+    
+    # Format how you want it to look in your dashboard
+    # Example: "John Doe (Oaktree Labs)"
+    display_name = f"{first_name} {surname} ({company_name})"
 
-    # 2. Determine Day (Cohort)
+    # 2. Determine Cohort based on today
+    import datetime
     current_day = datetime.datetime.now().strftime('%A')
     assigned_cohort = current_day if current_day in ["Monday", "Tuesday", "Wednesday", "Thursday"] else "Guest"
     
-    # 3. Generate Temporary ID (Since it's the Primary Key)
+    # 3. Generate Temp ID for Primary Key
     temp_id = f"GUEST-{uuid.uuid4().hex[:8].upper()}"
 
     conn = get_conn()
     cur = conn.cursor()
     try:
-        # 4. Smart Fill Logic (Prevents overwriting existing data if email matches)
+        # We mapped company_name to 'client' here to fix the SQL Error
         cur.execute("""
-            INSERT INTO cohort_candidates (cohort, client, email, phone, company, id_number, source)
-            VALUES (%s, %s, %s, %s, %s, %s, 'Webinar Registration')
+            INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, source)
+            VALUES (%s, %s, %s, %s, %s, 'Webinar Registration')
             ON CONFLICT (email) DO UPDATE SET
                 client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
                 phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
-                company = COALESCE(NULLIF(EXCLUDED.company, ''), cohort_candidates.company),
                 cohort = EXCLUDED.cohort
-        """, (assigned_cohort, full_name, email, phone, company, temp_id))
+        """, (assigned_cohort, display_name, email, phone, temp_id))
         
         conn.commit()
         
-        whatsapp_url = WHATSAPP_LINKS.get(assigned_cohort, WHATSAPP_LINKS["Guest"])
-        return render_template("registration_success.html", cohort=assigned_cohort, whatsapp_url=whatsapp_url)
+        session['reg_cohort'] = assigned_cohort
+        session['reg_wa'] = WHATSAPP_LINKS.get(assigned_cohort, WHATSAPP_LINKS["Guest"])
+        
+        return redirect(url_for('webinar_success'))
 
     except Exception as e:
-        conn.rollback()
-        print(f"Registration Error: {e}")
-        flash("Registration failed. Please try again.", "danger")
-        return redirect(url_for('webinar_landing'))
+        if conn: conn.rollback()
+        print(f"SQL Error: {e}") # This helps you debug in the terminal
+        flash(f"Registration Error: {str(e)}", "danger")
+        return redirect(url_for('webinar_form'))
     finally:
         cur.close()
         release_db(conn)
+
+@app.route("/webinar/success")
+def webinar_success():
+    """Step 3: The Success Page"""
+    cohort = session.get('reg_cohort', 'Guest')
+    wa_url = session.get('reg_wa', '#')
+    return render_template("registration_success.html", cohort=cohort, whatsapp_url=wa_url)
 
 if __name__ == "__main__":    
     app.run(debug=False)

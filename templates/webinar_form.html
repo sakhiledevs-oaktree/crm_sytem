@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration | Oaktree</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { background: #020617; color: white; font-family: 'Outfit'; height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; }
+        .form-wrap { width: 100%; max-width: 450px; background: rgba(255,255,255,0.02); padding: 40px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); }
+        .accent { color: #903749; font-weight: 800; font-size: 0.7rem; letter-spacing: 3px; margin-bottom: 10px; text-transform: uppercase; }
+        h2 { font-size: 2.2rem; margin-bottom: 2rem; letter-spacing: -1px; line-height: 1.1; }
+        input {
+            width: 100%; background: #0f172a; border: 1px solid #1e293b; padding: 18px; 
+            border-radius: 12px; color: white; font-size: 1rem; margin-bottom: 15px; transition: 0.3s;
+        }
+        input:focus { outline: none; border-color: #903749; background: #1e293b; }
+        .btn-submit {
+            width: 100%; padding: 20px; background: #903749; color: white; border: none; 
+            border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-wrap">
+        <div class="accent">Identity Confirmation</div>
+        <h2>Who are we <br>preparing for?</h2>
+        <form action="{{ url_for('webinar_process') }}" method="POST">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <input type="text" name="name" placeholder="Name" required>
+                <input type="text" name="surname" placeholder="Surname" required>
+            </div>
+            <input type="email" name="email" placeholder="Professional Email" required>
+            <input type="text" name="company" placeholder="Organization Name" required>
+            <input type="text" name="phone" placeholder="WhatsApp Number" required>
+            <button type="submit" class="btn-submit">CONFIRM ATTENDANCE</button>
+        </form>
+    </div>
+</body>
+</html>

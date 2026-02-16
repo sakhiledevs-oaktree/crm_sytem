@@ -112,9 +112,10 @@
                     </span>
                 </td>
                 <td style="padding: 16px; text-align: center; border-bottom: 1px solid #f1f5f9;" onclick="event.stopPropagation()">
-                    <button class="whatsapp-btn" 
+                    <button id="wa-btn-{{ row.id_number }}"
+                        class="whatsapp-btn" 
                         data-phone="{{ row.phone }}"
-                        onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}', event)" 
+                        onclick="sendWhatsApp('{{ row.phone }}', '{{ row.client }}', event, this)" 
                         style="background: #25d366; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; cursor: pointer; transition: 0.3s;">
                         SEND
                     </button>
@@ -126,6 +127,8 @@
                             id="comment-{{ row.id_number }}"
                             value="{{ row.admin_notes if row.admin_notes else '' }}" 
                             placeholder="Add note..."
+                            {# Trigger button reset on any input/change #}
+                            oninput="resetWhatsAppButton('{{ row.id_number }}')"
                             style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; width: 220px; outline: none; transition: 0.2s; flex-shrink: 0;"
                             onfocus="this.style.borderColor='#2563eb'"
                             onblur="this.style.borderColor='#e2e8f0'">
@@ -144,3 +147,31 @@
         </tbody>
     </table>
 </div>
+
+<script>
+/**
+ * Resets the WhatsApp button to its original 'SEND' state 
+ * whenever the comment/message input is modified.
+ */
+function resetWhatsAppButton(idNumber) {
+    const btn = document.getElementById('wa-btn-' + idNumber);
+    if (btn) {
+        btn.style.background = "#25d366"; // WhatsApp Green
+        btn.innerText = "SEND";
+    }
+}
+
+/**
+ * Modified sendWhatsApp to provide feedback (Turning gray/SENT)
+ */
+function sendWhatsApp(phone, client, event, btn) {
+    // Your existing window.open logic goes here
+    const comment = document.getElementById('comment-' + btn.id.split('-').pop()).value;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(comment)}`;
+    window.open(url, '_blank');
+    
+    // Provide feedback that it was sent
+    btn.style.background = "#94a3b8"; // Gray
+    btn.innerText = "SENT";
+}
+</script>

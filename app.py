@@ -280,6 +280,7 @@ def dashboard():
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
         # 1. Main Table Query (Kept exactly as is to preserve Dots logic)
+        # 1. Main Table Query (Updated for Case-Insensitivity and Admin Notes)
         query = """
             SELECT 
                 c.*, 
@@ -294,7 +295,7 @@ def dashboard():
                 (LOWER(TRIM(c.email)) = LOWER(TRIM(a.email)) AND c.email <> '') OR 
                 (LOWER(TRIM(c.client)) = LOWER(TRIM(a.name))) OR 
                 (TRIM(c.phone) = TRIM(a.phone) AND c.phone <> '')
-            WHERE (%s = 'All' OR c.cohort = %s)
+            WHERE (%s = 'All' OR LOWER(TRIM(c.cohort)) = LOWER(TRIM(%s)))
             GROUP BY c.id ORDER BY c.client ASC
         """
         cur.execute(query, (cohort, cohort))

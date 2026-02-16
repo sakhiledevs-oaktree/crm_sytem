@@ -224,14 +224,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function sendWhatsApp(phone, clientName, event) {
     if (!phone || phone === '-') return;
+
+    // Get message from drafter
+    let template = document.getElementById('whatsappTemplate')?.value;
+    if (!template || template.trim() === "") {
+        alert("Type a message in the WhatsApp drafter first!");
+        return;
+    }
+
+    // Clean phone number
     let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '27' + cleanPhone.substring(1);
+
+    // Convert SA local number to international format
+    if (cleanPhone.startsWith('0')) {
+        cleanPhone = '27' + cleanPhone.substring(1);
+    }
+
+    // Replace {name} placeholder
+    let finalMessage = template.replace(/{name}/gi, clientName);
+
+    // Encode message
+    const encodedMessage = encodeURIComponent(finalMessage);
+
+    // Mark as sent in localStorage
     localStorage.setItem('sent_' + cleanPhone, 'true');
+
+    // Update button UI
     const btn = event.currentTarget;
     btn.style.background = '#94a3b8';
     btn.innerText = 'SENT';
-    const msg = encodeURIComponent(`Hi ${clientName}, just following up on the session survey!`);
-    window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank');
+
+    // Open WhatsApp
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
 }
 
 document.addEventListener("DOMContentLoaded", function() {

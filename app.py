@@ -610,19 +610,20 @@ def update_comment():
     conn = get_conn()
     cur = conn.cursor()
     try:
+        # Saving to admin_notes to match your current table structure
         cur.execute("""
             UPDATE cohort_candidates 
             SET admin_notes = %s 
             WHERE id_number = %s
         """, (comment_text, id_number))
         conn.commit()
+        print(f"Comment saved for ID {id_number}") 
         return {"status": "success"}, 200
     except Exception as e:
+        print(f"Database Error: {str(e)}")
         return {"status": "error", "message": str(e)}, 500
     finally:
         cur.close()
         release_db(conn)
-
-
 if __name__ == "__main__":    
     app.run(debug=False)

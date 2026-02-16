@@ -73,6 +73,28 @@
         <div class="search-area">
             <input type="text" id="crmSearch" placeholder="Search by name, email, or ID..." onkeyup="filterTable()">
         </div>
+        {% if session.get('last_batch_id') %}
+        <div style="margin-bottom: 24px; padding: 14px 20px; background: #fffaf0; border: 1px solid #feebc8; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative;">
+            
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.2rem;">⚡</span>
+                <span style="color: #c05621; font-size: 0.95rem; font-weight: 600;">
+                    Upload Complete (Batch: {{ session['last_batch_id'] }}). 
+                </span>
+                <a href="{{ url_for('revert_last_upload') }}" 
+                onclick="return confirm('WARNING: This will delete newly added rows and restore original data. Continue?')"
+                style="background: #dd6b20; color: white; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; margin-left: 10px;">
+                    REVERT CHANGES
+                </a>
+    </div>
+
+    <a href="{{ url_for('dismiss_revert') }}" 
+       style="text-decoration: none; color: #c05621; font-size: 1.5rem; line-height: 1; padding: 0 5px; font-weight: 300; transition: 0.2s;"
+       title="Dismiss notification">
+        &times;
+    </a>
+</div>
+{% endif %}
     </header>
 
     {% with messages = get_flashed_messages() %}

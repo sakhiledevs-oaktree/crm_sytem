@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Webinar Registration | Oaktree People</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <style>
+        .webinar-wrapper { max-width: 850px; margin: 50px auto; font-family: 'Inter', sans-serif; padding: 0 20px; }
+        .creative-container { width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); margin-bottom: 40px; }
+        .creative-container img { width: 100%; height: auto; display: block; }
+        .reg-card { background: white; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .form-control { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+        .btn-register { background: #2563eb; color: white; border: none; width: 100%; padding: 18px; border-radius: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: 0.2s; }
+        .btn-register:hover { background: #1d4ed8; transform: translateY(-2px); }
+    </style>
+</head>
+<body style="background-color: #f8fafc;">
+
+<div class="webinar-wrapper">
+    <div class="creative-container">
+        <img src="{{ url_for('static', filename='images/webinar_creative.jpg') }}" alt="Join our Webinar">
+    </div>
+
+    <div class="reg-card">
+        <h2 style="margin-top: 0; color: #1e293b; font-size: 1.8rem;">Secure Your Spot</h2>
+        <p style="color: #64748b; margin-bottom: 30px;">Complete the form below to receive your webinar link and materials.</p>
+        
+        <form action="/webinar/register" method="POST">
+            <div class="form-grid">
+                <input type="text" name="name" class="form-control" placeholder="First Name" required>
+                <input type="text" name="surname" class="form-control" placeholder="Surname" required>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <input type="email" name="email" class="form-control" placeholder="Email Address" required>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <input type="text" name="company" class="form-control" placeholder="Company Name" required>
+            </div>
+            <div style="margin-bottom: 30px;">
+                <input type="text" name="phone" class="form-control" placeholder="Phone/WhatsApp Number" required>
+            </div>
+            <button type="submit" class="btn-register">REGISTER NOW</button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

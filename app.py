@@ -1,15 +1,19 @@
+
+from flask import Flask, render_template, redirect, jsonify, url_for, flash, send_from_directory, session, request
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from psycopg2.extras import execute_values
+from psycopg2.pool import ThreadedConnectionPool
+from io import StringIO, BytesIO
 import os
 import re
+import uuid
 import pandas as pd
 import io
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, redirect, jsonify, url_for, flash, send_from_directory
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from psycopg2.extras import execute_values
-from io import StringIO
-from psycopg2.pool import ThreadedConnectionPool
-from io import BytesIO
+
+
+import datetime
 
 
 app = Flask(__name__)
@@ -410,6 +414,132 @@ def ultimate_id_fix(val):
     except:
         return val
 
+
+
+@app.route("/upload/<cohort_context>", methods=["POST"])
+@login_required
+def upload(cohort_context):
+    conn = None 
+    file = request.files.get("file")
+    if not file:
+        return redirect(url_for("dashboard", cohort=cohort_context))
+
+    # Create a unique ID for this specific upload session (e.g., 20260216_1130)
+    batch_id = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    try:
+        df = load_tabular_file(file)
+        conn = get_conn()
+        cur = conn.cursor()
+
+        for _, row in df.iterrows():
+            row_dict = row.to_dict()
+            
+            # --- DEFINE THESE VARIABLES FIRST ---
+            name_val = get_clean_row_val(row_dict, ["Client Name", "Name", "Full Name"])
+            phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
+            tier_val = get_clean_row_val(row_dict, ["Tier"])
+            id_val = ultimate_id_fix(get_clean_row_val(row_dict, ["ID Number", "Identity", "ID"]))
+            email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
+            
+            if not id_val: continue
+
+            raw_source = get_clean_row_val(row_dict, ["source"])
+            m_digit = re.search(r"\d", str(raw_source))
+            assigned_day = MENTORSHIP_MAP.get(m_digit.group(0) if m_digit else None, cohort_context)
+
+            cur.execute("""
+                INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, tier, source, last_upload_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (cohort, id_number) DO UPDATE SET
+                    -- 1. Always update the Name if provided (to keep it fresh)
+                    client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
+                    
+                    -- 2. "Smart Fill" Email: Only update if current is empty AND new is NOT empty
+                    email = CASE 
+                        WHEN (cohort_candidates.email IS NULL OR cohort_candidates.email = '' OR cohort_candidates.email = 'pending@oaktree.co.za') 
+                        THEN COALESCE(NULLIF(EXCLUDED.email, ''), cohort_candidates.email)
+                        ELSE cohort_candidates.email 
+                    END,
+
+                    -- 3. "Smart Fill" Phone: Only update if current is empty/NA AND new is NOT empty
+                    phone = CASE 
+                        WHEN (cohort_candidates.phone IS NULL OR cohort_candidates.phone = '' OR cohort_candidates.phone = 'N/A') 
+                        THEN COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone)
+                        ELSE cohort_candidates.phone 
+                    END,
+
+                    -- 4. Track this batch for the Revert button
+                    prev_data = CASE 
+                        WHEN cohort_candidates.last_upload_id = EXCLUDED.last_upload_id THEN cohort_candidates.prev_data
+                        ELSE jsonb_build_object(
+                            'client', cohort_candidates.client,
+                            'email', cohort_candidates.email,
+                            'phone', cohort_candidates.phone
+                        )
+                    END,
+                    last_upload_id = EXCLUDED.last_upload_id
+            """, (assigned_day, name_val, email_val, phone_val, id_val, tier_val, raw_source, batch_id))
+
+        conn.commit()
+        flash(f"Successfully imported. | Batch ID: {batch_id}", "success")
+        # Store batch_id in session so the Revert button knows which one to undo
+        session['last_batch_id'] = batch_id 
+
+    except Exception as e:
+        if conn: conn.rollback()
+        flash(f"Upload error: {str(e)}", "danger")
+    finally:
+        if conn: release_db(conn)
+        
+    return redirect(url_for("dashboard", cohort=cohort_context))
+
+@app.route("/revert_last_upload")
+@login_required
+def revert_last_upload():
+    batch_id = session.get('last_batch_id')
+    if not batch_id:
+        flash("No recent upload found to revert.", "warning")
+        return redirect(url_for("dashboard", cohort='All'))
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # 1. Restore rows that were overwritten (Restores client, email, phone from JSON)
+        cur.execute("""
+            UPDATE cohort_candidates 
+            SET 
+                client = prev_data->>'client',
+                email = prev_data->>'email',
+                phone = prev_data->>'phone',
+                prev_data = NULL,
+                last_upload_id = NULL
+            WHERE last_upload_id = %s AND prev_data IS NOT NULL
+        """, (batch_id,))
+
+        # 2. Delete rows that were newly created in this batch
+        cur.execute("""
+            DELETE FROM cohort_candidates 
+            WHERE last_upload_id = %s AND prev_data IS NULL
+        """, (batch_id,))
+
+        conn.commit()
+        session.pop('last_batch_id', None) # Clear from session
+        flash("Revert Successful: Database restored to previous state.", "success")
+    except Exception as e:
+        if conn: conn.rollback()
+        flash(f"Revert failed: {str(e)}", "danger")
+    finally:
+        release_db(conn)
+    return redirect(url_for("dashboard", cohort='All'))
+
+@app.route("/dismiss_revert")
+@login_required
+def dismiss_revert():
+    session.pop('last_batch_id', None)
+    # Redirect back to the cohort they were viewing
+    return redirect(request.referrer or url_for("dashboard", cohort='All'))
+
 @app.route("/upload_attendance/<int:session_num>", methods=["POST"])
 def upload_attendance(session_num):
     cohort = request.args.get('cohort')
@@ -626,5 +756,64 @@ def update_comment():
     finally:
         cur.close()
         release_db(conn)
+
+
+@app.route("/webinar")
+def webinar_landing():
+    return render_template("webinar_landing.html")
+
+@app.route("/webinar/register", methods=["POST"])
+def webinar_register():
+    # Defined your WhatsApp cohort links here
+    WHATSAPP_LINKS = {
+        "Monday": "https://chat.whatsapp.com/MondayGroupLink",
+        "Tuesday": "https://chat.whatsapp.com/TuesdayGroupLink",
+        "Wednesday": "https://chat.whatsapp.com/WednesdayGroupLink",
+        "Thursday": "https://chat.whatsapp.com/ThursdayGroupLink",
+        "Guest": "https://chat.whatsapp.com/GuestGroupLink"
+    }
+    # 1. Capture Form Data
+    name = request.form.get("name")
+    surname = request.form.get("surname")
+    email = request.form.get("email").lower().strip()
+    company = request.form.get("company")
+    phone = request.form.get("phone")
+    full_name = f"{name} {surname}"
+
+    # 2. Determine Day (Cohort)
+    current_day = datetime.datetime.now().strftime('%A')
+    assigned_cohort = current_day if current_day in ["Monday", "Tuesday", "Wednesday", "Thursday"] else "Guest"
+    
+    # 3. Generate Temporary ID (Since it's the Primary Key)
+    temp_id = f"GUEST-{uuid.uuid4().hex[:8].upper()}"
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # 4. Smart Fill Logic (Prevents overwriting existing data if email matches)
+        cur.execute("""
+            INSERT INTO cohort_candidates (cohort, client, email, phone, company, id_number, source)
+            VALUES (%s, %s, %s, %s, %s, %s, 'Webinar Registration')
+            ON CONFLICT (email) DO UPDATE SET
+                client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
+                phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
+                company = COALESCE(NULLIF(EXCLUDED.company, ''), cohort_candidates.company),
+                cohort = EXCLUDED.cohort
+        """, (assigned_cohort, full_name, email, phone, company, temp_id))
+        
+        conn.commit()
+        
+        whatsapp_url = WHATSAPP_LINKS.get(assigned_cohort, WHATSAPP_LINKS["Guest"])
+        return render_template("registration_success.html", cohort=assigned_cohort, whatsapp_url=whatsapp_url)
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Registration Error: {e}")
+        flash("Registration failed. Please try again.", "danger")
+        return redirect(url_for('webinar_landing'))
+    finally:
+        cur.close()
+        release_db(conn)
+
 if __name__ == "__main__":    
     app.run(debug=False)

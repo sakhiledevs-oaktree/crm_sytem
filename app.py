@@ -771,11 +771,7 @@ def webinar_form():
 
 
 WHATSAPP_LINKS = {
-    "Monday": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c",
-    "Tuesday": "https://chat.whatsapp.com/JHAJ4KSDZyv97kbTovn4NO?mode=gi_c",
-    "Wednesday": "https://chat.whatsapp.com/FHlfIbAkwaQ8nNnlhYzPUB?mode=gi_c",
-    "Thursday": "https://chat.whatsapp.com/H7OBmKlsw2LCGSrxlHn6BS?mode=gi_c",
-    "Guest": "https://chat.whatsapp.com/JHAJ4KSDZyv97kbTovn4NO?mode=gi_c"
+    "Guest":"https://chat.whatsapp.com/JHAJ4KSDZyv97kbTovn4NO?mode=gi_c"
     }
 
 @app.route("/webinar/process", methods=["POST"])

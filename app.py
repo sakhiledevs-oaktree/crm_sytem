@@ -635,6 +635,7 @@ def handle_survey(cohort, session_id):
                 
                 return render_template('survey_entry.html', cohort=cohort, session=session_id, 
                                      step=2, user=user_data, is_guest=is_guest)
+                                     
 
             elif step == '2':
                 email = request.form.get('verified_email', '').strip().lower()

@@ -772,10 +772,10 @@ def webinar_form():
 
 WHATSAPP_LINKS = {
     "Monday": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c",
-    "Tuesday": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c",
+    "Tuesday": "https://chat.whatsapp.com/JHAJ4KSDZyv97kbTovn4NO?mode=gi_c",
     "Wednesday": "https://chat.whatsapp.com/FHlfIbAkwaQ8nNnlhYzPUB?mode=gi_c",
     "Thursday": "https://chat.whatsapp.com/H7OBmKlsw2LCGSrxlHn6BS?mode=gi_c",
-    "Guest": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c"
+    "Guest": "https://chat.whatsapp.com/JHAJ4KSDZyv97kbTovn4NO?mode=gi_c"
     }
 
 @app.route("/webinar/process", methods=["POST"])
@@ -794,7 +794,8 @@ def webinar_process():
     # 2. Determine Cohort based on today
     import datetime
     current_day = datetime.datetime.now().strftime('%A')
-    assigned_cohort = current_day if current_day in ["Monday", "Tuesday", "Wednesday", "Thursday"] else "Guest"
+    
+    assigned_cohort = current_day if current_day in WHATSAPP_LINKS else "Guest"
     
     # 3. Generate Temp ID for Primary Key
     temp_id = f"GUEST-{uuid.uuid4().hex[:8].upper()}"
@@ -813,9 +814,8 @@ def webinar_process():
         """, (assigned_cohort, display_name, email, phone, temp_id))
         
         conn.commit()
-        
         session['reg_cohort'] = assigned_cohort
-        session['reg_wa'] = WHATSAPP_LINKS.get(assigned_cohort, WHATSAPP_LINKS["Guest"])
+        session['reg_wa'] = WHATSAPP_LINKS.get(assigned_cohort)
         
         return redirect(url_for('webinar_success'))
 
@@ -832,8 +832,9 @@ def webinar_process():
 def webinar_success():
     """Step 3: The Success Page"""
     cohort = session.get('reg_cohort', 'Guest')
-    wa_url = session.get('reg_wa', '#')
+    wa_url = session.get('reg_wa', WHATSAPP_LINKS["Guest"])
     return render_template("registration_success.html", cohort=cohort, whatsapp_url=wa_url)
+    
 
 if __name__ == "__main__":    
     port = int(os.environ.get("PORT", 10000))

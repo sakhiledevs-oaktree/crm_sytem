@@ -1,21 +1,171 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Registration Confirmed!</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Confirmed | Webinar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
     <style>
-        .success-box { max-width: 450px; margin: 100px auto; text-align: center; padding: 50px; background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-        .wa-btn { background: #25D366; color: white; text-decoration: none; padding: 18px 30px; border-radius: 12px; font-weight: 700; display: inline-block; margin-top: 25px; transition: 0.2s; }
-        .wa-btn:hover { background: #128C7E; transform: scale(1.05); }
+        :root {
+            --primary: #25D366;
+            --primary-dark: #128C7E;
+            --slate-900: #0f172a;
+            --slate-600: #475569;
+            --slate-400: #94a3b8;
+        }
+
+        body {
+            background-color: #f1f5f9;
+            background-image: radial-gradient(at 0% 0%, rgba(37, 211, 102, 0.05) 0px, transparent 50%),
+                              radial-gradient(at 100% 100%, rgba(30, 41, 59, 0.05) 0px, transparent 50%);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .success-container {
+            max-width: 480px;
+            width: 90%;
+            perspective: 1000px;
+        }
+
+        .success-box {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 60px 40px;
+            border-radius: 32px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Animated Checkmark */
+        .icon-circle {
+            width: 80px;
+            height: 80px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            box-shadow: 0 10px 20px rgba(37, 211, 102, 0.2);
+        }
+
+        .icon-circle svg {
+            width: 40px;
+            height: 40px;
+            color: white;
+            animation: scaleCheck 0.5s 0.4s both cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes scaleCheck {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        h1 {
+            color: var(--slate-900);
+            font-weight: 800;
+            font-size: 2rem;
+            margin-bottom: 12px;
+            letter-spacing: -0.025em;
+        }
+
+        p {
+            color: var(--slate-600);
+            line-height: 1.6;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+
+        .cohort-badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .wa-btn {
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            padding: 20px 32px;
+            border-radius: 16px;
+            font-weight: 700;
+            display: block;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 15px -3px rgba(37, 211, 102, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.95rem;
+        }
+
+        .wa-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(37, 211, 102, 0.4);
+        }
+
+        .wa-btn:active {
+            transform: translateY(0);
+        }
+
+        .footer-link {
+            display: inline-block;
+            margin-top: 40px;
+            color: var(--slate-400);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .footer-link:hover {
+            color: var(--slate-600);
+        }
     </style>
 </head>
-<body style="background: #f8fafc; font-family: sans-serif;">
-    <div class="success-box">
-        <div style="font-size: 4rem;">🎉</div>
-        <h1 style="color: #1e293b;">You're Registered!</h1>
-        <p style="color: #64748b;">You've been assigned to the <strong>{{ cohort }}</strong> cohort.</p>
-        <a href="{{ whatsapp_url }}" target="_blank" class="wa-btn">JOIN {{ cohort|upper }} WHATSAPP GROUP</a>
-        <br><br>
-        <a href="/" style="color: #94a3b8; font-size: 0.9rem; text-decoration: none;">Return to Dashboard</a>
+<body>
+
+    <div class="success-container">
+        <div class="success-box">
+            <div class="icon-circle">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+
+            <h1>Seat Confirmed!</h1>
+            
+            <p>
+                Hello! You've been successfully added to the <br>
+                <span class="cohort-badge">{{ cohort if cohort else 'Guest' }}</span> cohort.
+            </p>
+
+            <a href="{{ whatsapp_url if whatsapp_url != '#' else 'https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd' }}" 
+               target="_blank" 
+               class="wa-btn">
+               Join {{ cohort|upper if cohort else 'Webinar' }} WhatsApp Group
+            </a>
+
+            <a href="/" class="footer-link">
+                &larr; Back to Dashboard
+            </a>
+        </div>
     </div>
+
 </body>
 </html>

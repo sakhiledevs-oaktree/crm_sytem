@@ -777,6 +777,7 @@ WHATSAPP_LINKS = {
     "Thursday": "https://chat.whatsapp.com/H7OBmKlsw2LCGSrxlHn6BS?mode=gi_c",
     "Guest": "https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd?mode=gi_c"
     }
+
 @app.route("/webinar/process", methods=["POST"])
 def webinar_process():
     # 1. Capture Form Data
@@ -835,4 +836,5 @@ def webinar_success():
     return render_template("registration_success.html", cohort=cohort, whatsapp_url=wa_url)
 
 if __name__ == "__main__":    
-    app.run(debug=False)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)

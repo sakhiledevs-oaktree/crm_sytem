@@ -780,33 +780,35 @@ def webinar_process():
     first_name = request.form.get("name")
     surname = request.form.get("surname")
     email = request.form.get("email").lower().strip()
-    company_name = request.form.get("company") # This will go into 'client'
+    company_name = request.form.get("company") 
     phone = request.form.get("phone")
     
-    # Format how you want it to look in your dashboard
-    # Example: "John Doe (Oaktree Labs)"
     display_name = f"{first_name} {surname} ({company_name})"
 
-    # 2. Determine Cohort based on today
+    # 2. Determine Cohort and Day
     import datetime
-    current_day = datetime.datetime.now().strftime('%A')
+    import uuid
+    # Get the day of the week (e.g., WEDNESDAY)
+    current_day = datetime.datetime.now().strftime('%A').upper()
     
     assigned_cohort = current_day if current_day in WHATSAPP_LINKS else "Guest"
     
-    # 3. Generate Temp ID for Primary Key
-    temp_id = f"GUEST-{uuid.uuid4().hex[:8].upper()}"
+    # 3. Generate Temp ID with Day Tag
+    # Format: WEDNESDAY-GUEST-A1B2C3D4
+    unique_suffix = uuid.uuid4().hex[:8].upper()
+    temp_id = f"{current_day}-GUEST-{unique_suffix}"
 
     conn = get_conn()
     cur = conn.cursor()
     try:
-        # We mapped company_name to 'client' here to fix the SQL Error
         cur.execute("""
             INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, source)
             VALUES (%s, %s, %s, %s, %s, 'Webinar Registration')
             ON CONFLICT (email) DO UPDATE SET
                 client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
                 phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
-                cohort = EXCLUDED.cohort
+                cohort = EXCLUDED.cohort,
+                id_number = EXCLUDED.id_number  -- Optional: updates the ID to the latest day tag
         """, (assigned_cohort, display_name, email, phone, temp_id))
         
         conn.commit()
@@ -817,13 +819,13 @@ def webinar_process():
 
     except Exception as e:
         if conn: conn.rollback()
-        print(f"SQL Error: {e}") # This helps you debug in the terminal
+        print(f"SQL Error: {e}")
         flash(f"Registration Error: {str(e)}", "danger")
         return redirect(url_for('webinar_landing'))
     finally:
         cur.close()
         release_db(conn)
-
+        
 @app.route("/webinar/success")
 def webinar_success():
     cohort = session.get('reg_cohort', 'Guest')

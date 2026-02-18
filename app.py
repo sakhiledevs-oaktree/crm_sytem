@@ -771,7 +771,7 @@ def webinar_form():
 
 
 WHATSAPP_LINKS = {
-    "Guest":"https://chat.whatsapp.com/JHAJ4KSDZyv97kbTovn4NO?mode=gi_c"
+    "Guest":"https://chat.whatsapp.com/FHlfIbAkwaQ8nNnlhYzPUB?mode=gi_c"
     }
 
 @app.route("/webinar/process", methods=["POST"])
@@ -819,18 +819,45 @@ def webinar_process():
         if conn: conn.rollback()
         print(f"SQL Error: {e}") # This helps you debug in the terminal
         flash(f"Registration Error: {str(e)}", "danger")
-        return redirect(url_for('webinar_form'))
+        return redirect(url_for('webinar_landing'))
     finally:
         cur.close()
         release_db(conn)
 
 @app.route("/webinar/success")
 def webinar_success():
-    """Step 3: The Success Page"""
     cohort = session.get('reg_cohort', 'Guest')
     wa_url = session.get('reg_wa', WHATSAPP_LINKS["Guest"])
-    return render_template("registration_success.html", cohort=cohort, whatsapp_url=wa_url)
-    
+
+    from datetime import datetime
+
+    # 🔹 Webinar Details
+    event_title = "Oaktree Business Growth Webinar"
+    event_description = "Join us live on Microsoft Teams."
+    teams_link = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_ODBhNDEzZDMtZjc1MC00OTA3LWJjODItZGY1MTdjMjg1NmZh%40thread.v2/0?context=%7b%22Tid%22%3a%22784c8a5b-84c1-4c3e-904d-effa70174769%22%2c%22Oid%22%3a%221741f59d-5bba-4ccc-9f76-bb9eff953c95%22%7d"
+
+    # 🔹 SA Time 17:30 → Convert to UTC (15:30)
+    start = datetime(2026, 2, 18, 15, 30)
+    end = datetime(2026, 2, 18, 17, 0)
+
+    start_str = start.strftime("%Y%m%dT%H%M%SZ")
+    end_str = end.strftime("%Y%m%dT%H%M%SZ")
+
+    google_calendar_link = (
+        "https://calendar.google.com/calendar/render?action=TEMPLATE"
+        f"&text={event_title}"
+        f"&dates={start_str}/{end_str}"
+        f"&details={event_description}%0A%0AJoin%20here:%20{teams_link}"
+        f"&location={teams_link}"
+        "&sf=true&output=xml"
+    )
+
+    return render_template(
+        "registration_success.html",
+        cohort=cohort,
+        whatsapp_url=wa_url,
+        calendar_link=google_calendar_link
+    )
 
 if __name__ == "__main__":    
     port = int(os.environ.get("PORT", 10000))

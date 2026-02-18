@@ -49,7 +49,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Animated Checkmark */
         .icon-circle {
             width: 80px;
             height: 80px;
@@ -119,10 +118,6 @@
             box-shadow: 0 20px 25px -5px rgba(37, 211, 102, 0.4);
         }
 
-        .wa-btn:active {
-            transform: translateY(0);
-        }
-
         .footer-link {
             display: inline-block;
             margin-top: 40px;
@@ -155,15 +150,16 @@
                 <span class="cohort-badge">{{ cohort if cohort else 'Guest' }}</span> cohort.
             </p>
 
-            <a href="{{ whatsapp_url if whatsapp_url != '#' else 'https://chat.whatsapp.com/JzfPRtyF3rn9tyE3L4k4Qd' }}" 
+            <a href="{{ whatsapp_url if whatsapp_url != '#' else 'https://chat.whatsapp.com/FHlfIbAkwaQ8nNnlhYzPUB?mode=gi_c' }}" 
                target="_blank" 
                class="wa-btn">
                Join {{ cohort|upper if cohort else 'Webinar' }} WhatsApp Group
             </a>
 
-            <a href="/" class="footer-link">
-                &larr; Back to Dashboard
+            <a href="{{ calendar_link }}" target="_blank" class="footer-link">
+                📅 Add to Google Calendar
             </a>
+
         </div>
     </div>
 

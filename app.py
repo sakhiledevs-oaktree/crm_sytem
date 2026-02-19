@@ -771,7 +771,7 @@ def webinar_form():
 
 
 WHATSAPP_LINKS = {
-    "Guest":"https://chat.whatsapp.com/FHlfIbAkwaQ8nNnlhYzPUB?mode=gi_c"
+    "Guest":"https://chat.whatsapp.com/H7OBmKlsw2LCGSrxlHn6BS?mode=gi_c"
     }
 
 @app.route("/webinar/process", methods=["POST"])
@@ -836,7 +836,7 @@ def webinar_success():
     # 🔹 Webinar Details
     event_title = "Oaktree Business Growth Webinar"
     event_description = "Join us live on Microsoft Teams."
-    teams_link = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_ODBhNDEzZDMtZjc1MC00OTA3LWJjODItZGY1MTdjMjg1NmZh%40thread.v2/0?context=%7b%22Tid%22%3a%22784c8a5b-84c1-4c3e-904d-effa70174769%22%2c%22Oid%22%3a%221741f59d-5bba-4ccc-9f76-bb9eff953c95%22%7d"
+    teams_link = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_NTNmOWU5NGUtZmFmYS00YjhjLWI4NWMtYWU1ODU0YmNkMGI4%40thread.v2/0?context=%7b%22Tid%22%3a%22784c8a5b-84c1-4c3e-904d-effa70174769%22%2c%22Oid%22%3a%221741f59d-5bba-4ccc-9f76-bb9eff953c95%22%7d"
 
     # 🔹 SA Time 17:30 → Convert to UTC (15:30)
     start = datetime(2026, 2, 18, 15, 30)

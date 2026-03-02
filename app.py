@@ -785,31 +785,36 @@ def webinar_process():
     
     display_name = f"{first_name} {surname} ({company_name})"
 
-    # 2. Determine Cohort and Day
+    # 2. Determine Cohort, Day, and Registration Date
     import datetime
     import uuid
-    # Get the day of the week (e.g., WEDNESDAY)
-    current_day = datetime.datetime.now().strftime('%A').upper()
+    
+    now = datetime.datetime.now()
+    current_day = now.strftime('%A').upper()
+    # Format: 2026-03-02
+    registration_date = now.strftime('%Y-%m-%d') 
     
     assigned_cohort = current_day if current_day in WHATSAPP_LINKS else "Guest"
     
-    # 3. Generate Temp ID with Day Tag
-    # Format: WEDNESDAY-GUEST-A1B2C3D4
+    # 3. Generate Temp ID with Day Tag and Date
+    # Format: MON-2026-03-02-A1B2C3D4
     unique_suffix = uuid.uuid4().hex[:8].upper()
-    temp_id = f"{current_day}-GUEST-{unique_suffix}"
+    temp_id = f"{current_day[:3]}-{registration_date}-{unique_suffix}"
 
     conn = get_conn()
     cur = conn.cursor()
     try:
+        # Note: Ensure your database table has a 'registration_date' column
         cur.execute("""
-            INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, source)
-            VALUES (%s, %s, %s, %s, %s, 'Webinar Registration')
+            INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, source, registration_date)
+            VALUES (%s, %s, %s, %s, %s, 'Webinar Registration', %s)
             ON CONFLICT (email) DO UPDATE SET
                 client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
                 phone = COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone),
                 cohort = EXCLUDED.cohort,
-                id_number = EXCLUDED.id_number  -- Optional: updates the ID to the latest day tag
-        """, (assigned_cohort, display_name, email, phone, temp_id))
+                id_number = EXCLUDED.id_number,
+                registration_date = EXCLUDED.registration_date
+        """, (assigned_cohort, display_name, email, phone, temp_id, registration_date))
         
         conn.commit()
         session['reg_cohort'] = assigned_cohort
@@ -826,6 +831,7 @@ def webinar_process():
         cur.close()
         release_db(conn)
         
+                
 @app.route("/webinar/success")
 def webinar_success():
     cohort = session.get('reg_cohort', 'Guest')

@@ -784,11 +784,7 @@ def webinar_process():
     phone = request.form.get("phone")
     
     display_name = f"{first_name} {surname} ({company_name})"
-
-    # 2. Determine Cohort, Day, and Registration Date
-    import datetime
-    import uuid
-    
+ 
     now = datetime.datetime.now()
     current_day = now.strftime('%A').upper()
     # Format: 2026-03-02
@@ -796,10 +792,11 @@ def webinar_process():
     
     assigned_cohort = current_day if current_day in WHATSAPP_LINKS else "Guest"
     
-    # 3. Generate Temp ID with Day Tag and Date
+    # 2. Generate Temp ID with Day Tag and Date
     # Format: MON-2026-03-02-A1B2C3D4
     unique_suffix = uuid.uuid4().hex[:8].upper()
-    temp_id = f"{current_day[:3]}-{registration_date}-{unique_suffix}"
+    late = 'Late'
+    temp_id = f"{current_day[:3]}-{registration_date}-{late}-{unique_suffix}"
 
     conn = get_conn()
     cur = conn.cursor()

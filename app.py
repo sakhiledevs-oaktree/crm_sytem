@@ -795,8 +795,8 @@ def webinar_process():
     # 2. Generate Temp ID with Day Tag and Date
     # Format: MON-2026-03-02-A1B2C3D4
     unique_suffix = uuid.uuid4().hex[:8].upper()
-    # late = 'Late'
-    temp_id = f"{current_day[:3]}-{registration_date}-{unique_suffix}"
+    late = 'Late'
+    temp_id = f"{current_day[:3]}-{late}-{registration_date}-{unique_suffix}"
 
     conn = get_conn()
     cur = conn.cursor()

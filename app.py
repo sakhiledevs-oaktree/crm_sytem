@@ -475,7 +475,7 @@ def upload(cohort_context):
             cur.execute("""
                 INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, tier, source, last_upload_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (cohort, id_number) DO UPDATE SET
+                ON CONFLICT (id_number) DO UPDATE SET
                     -- 1. Always update the Name if provided (to keep it fresh)
                     client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
                     

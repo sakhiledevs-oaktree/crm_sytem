@@ -42,7 +42,7 @@
         <div class="brand">CRM <span> OAKTREEPEOPLE</span></div>
         <div class="nav-buttons">
             <a class="nav-btn {% if cohort == 'All' %}active{% endif %}" href="/?cohort=All">All Candidates</a>
-            {% set day_labels = {"Monday": "GrowMe(100)", "Tuesday": "Tuesday", "Wednesday": "Wednesday", "Thursday": "Thursday"} %}
+            {% set day_labels = {"Monday": "GrowMe", "Tuesday": "Tuesday", "Wednesday": "Wednesday", "Thursday": "Thursday", "IgniteSummit": "Ignite Summit"} %}
      {% for d in ["Monday", "Tuesday", "Wednesday", "Thursday"] %}
      <a class="nav-btn {% if cohort == d %}active{% endif %}" href="/?cohort={{ d }}">
          <span class="dot {{ d|lower }}"></span> {{ day_labels[d] }}
@@ -51,6 +51,10 @@
             <a class="nav-btn {% if cohort == 'Guest' %}active{% endif %}" href="/?cohort=Guest" style="border-left: 1px solid #e2e8f0; margin-left: 10px; padding-left: 15px;">
                 <span class="dot guest"></span> Guests
             </a>
+            <a class="nav-btn {% if cohort == 'IgniteSummit' %}active{% endif %}" href="/?cohort=IgniteSummit"
+      style="border-left: 1px solid #e2e8f0; margin-left: 10px; padding-left: 15px;">
+       Ignite Summit
+   </a>
         </div>
         <div class="nav-right">
             <form method="POST" action="/upload/{{ cohort }}" enctype="multipart/form-data" id="masterUploadForm">

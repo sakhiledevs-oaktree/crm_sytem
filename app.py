@@ -375,8 +375,14 @@ def load_tabular_file(file):
                 raise ValueError(f"Could not parse CSV: {e}")
 
     elif filename.endswith((".xlsx", ".xls")):
-        # For Excel files, we also skip the first 9 rows of metadata
-        return pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl', skiprows=9)
+       # Try reading normally first (plain contact/ticket lists have headers on row 1)
+       df = pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl')
+       normalized_cols = [str(c).strip().lower() for c in df.columns]
+       # If nothing looks like a real header, it's probably a Teams export
+       # with 9 rows of metadata before the actual header row
+       if not any(k in " ".join(normalized_cols) for k in ["name", "email", "id", "phone", "surname"]):
+           df = pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl', skiprows=9)
+       return df
     
     raise ValueError("Unsupported file format.")
 

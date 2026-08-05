@@ -42,11 +42,12 @@
         <div class="brand">CRM <span> OAKTREEPEOPLE</span></div>
         <div class="nav-buttons">
             <a class="nav-btn {% if cohort == 'All' %}active{% endif %}" href="/?cohort=All">All Candidates</a>
-            {% for d in ["Monday", "Tuesday", "Wednesday", "Thursday"] %}
-              <a class="nav-btn {% if cohort == d %}active{% endif %}" href="/?cohort={{ d }}">
-                  <span class="dot {{ d|lower }}"></span> {{ d }}
-              </a>
-            {% endfor %}
+            {% set day_labels = {"Monday": "GrowMe(100)", "Tuesday": "Tuesday", "Wednesday": "Wednesday", "Thursday": "Thursday"} %}
+     {% for d in ["Monday", "Tuesday", "Wednesday", "Thursday"] %}
+     <a class="nav-btn {% if cohort == d %}active{% endif %}" href="/?cohort={{ d }}">
+         <span class="dot {{ d|lower }}"></span> {{ day_labels[d] }}
+     </a>
+   {% endfor %}
             <a class="nav-btn {% if cohort == 'Guest' %}active{% endif %}" href="/?cohort=Guest" style="border-left: 1px solid #e2e8f0; margin-left: 10px; padding-left: 15px;">
                 <span class="dot guest"></span> Guests
             </a>
@@ -65,8 +66,8 @@
 <div class="container">
     <header class="page-header">
         <div class="header-titles">
-            <div class="breadcrumb">Mentorship Program / {{ cohort }}</div>
-            <h1>{{ cohort if cohort != 'All' else 'Master Database' }} 
+            <div class="breadcrumb">Mentorship Program / {{ day_labels.get(cohort, cohort) }}</div>
+            <h1>{{ day_labels.get(cohort, cohort) if cohort != 'All' else 'Master Database' }} 
                 <span class="count-badge">{{ rows|length }} entries</span>
             </h1>
         </div>

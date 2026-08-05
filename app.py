@@ -446,60 +446,60 @@ def upload(cohort_context):
 
         skipped_duplicates = 0
 
-    for _, row in df.iterrows():
-        row_dict = row.to_dict()
+        for _, row in df.iterrows():
+            row_dict = row.to_dict()
 
-        # --- DEFINE THESE VARIABLES FIRST ---
-        if cohort_context == "IgniteSummit":
-            first_val = get_clean_row_val(row_dict, ["Name", "First Name"])
-            last_val = get_clean_row_val(row_dict, ["Surname", "Last Name"])
-            name_val = f"{first_val} {last_val}".strip()
-            phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile", "Cell Phone Number"])
-            tier_val = get_clean_row_val(row_dict, ["Tier"])
-            id_val = get_clean_row_val(row_dict, ["Company ID"])
-            email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
-        else:
-            name_val = get_clean_row_val(row_dict, ["Client Name", "Name", "Full Name"])
-            phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
-            tier_val = get_clean_row_val(row_dict, ["Tier"])
-            id_val = ultimate_id_fix(get_clean_row_val(row_dict, ["ID Number", "Identity", "ID"]))
-            email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
+            # --- DEFINE THESE VARIABLES FIRST ---
+            if cohort_context == "IgniteSummit":
+                first_val = get_clean_row_val(row_dict, ["Name", "First Name"])
+                last_val = get_clean_row_val(row_dict, ["Surname", "Last Name"])
+                name_val = f"{first_val} {last_val}".strip()
+                phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile", "Cell Phone Number"])
+                tier_val = get_clean_row_val(row_dict, ["Tier"])
+                id_val = get_clean_row_val(row_dict, ["Company ID"])
+                email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
+            else:
+                name_val = get_clean_row_val(row_dict, ["Client Name", "Name", "Full Name"])
+                phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
+                tier_val = get_clean_row_val(row_dict, ["Tier"])
+                id_val = ultimate_id_fix(get_clean_row_val(row_dict, ["ID Number", "Identity", "ID"]))
+                email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
 
-        if not id_val: continue
+            if not id_val: continue
 
-        raw_source = get_clean_row_val(row_dict, ["source"])
-        m_digit = re.search(r"\d", str(raw_source))
-        assigned_day = MENTORSHIP_MAP.get(m_digit.group(0) if m_digit else None, cohort_context)
+            raw_source = get_clean_row_val(row_dict, ["source"])
+            m_digit = re.search(r"\d", str(raw_source))
+            assigned_day = MENTORSHIP_MAP.get(m_digit.group(0) if m_digit else None, cohort_context)
 
-        try:
-            cur.execute("SAVEPOINT row_savepoint")
-            cur.execute("""
-                INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, tier, source, last_upload_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (email) DO UPDATE SET
-                    cohort = EXCLUDED.cohort,
-                    client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
-                    id_number = COALESCE(NULLIF(EXCLUDED.id_number, ''), cohort_candidates.id_number),
-                    phone = CASE 
-                        WHEN (cohort_candidates.phone IS NULL OR cohort_candidates.phone = '' OR cohort_candidates.phone = 'N/A') 
-                        THEN COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone)
-                        ELSE cohort_candidates.phone 
-                    END,
-                    prev_data = CASE 
-                        WHEN cohort_candidates.last_upload_id = EXCLUDED.last_upload_id THEN cohort_candidates.prev_data
-                        ELSE jsonb_build_object(
-                            'client', cohort_candidates.client,
-                            'email', cohort_candidates.email,
-                            'phone', cohort_candidates.phone,
-                            'cohort', cohort_candidates.cohort
-                        )
-                    END,
-                    last_upload_id = EXCLUDED.last_upload_id
-            """, (assigned_day, name_val, email_val, phone_val, id_val, tier_val, raw_source, batch_id))
-        except psycopg2.Error:
-            cur.execute("ROLLBACK TO SAVEPOINT row_savepoint")
-            skipped_duplicates += 1
-            continue
+            try:
+                cur.execute("SAVEPOINT row_savepoint")
+                cur.execute("""
+                    INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, tier, source, last_upload_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (email) DO UPDATE SET
+                        cohort = EXCLUDED.cohort,
+                        client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
+                        id_number = COALESCE(NULLIF(EXCLUDED.id_number, ''), cohort_candidates.id_number),
+                        phone = CASE 
+                            WHEN (cohort_candidates.phone IS NULL OR cohort_candidates.phone = '' OR cohort_candidates.phone = 'N/A') 
+                            THEN COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone)
+                            ELSE cohort_candidates.phone 
+                        END,
+                        prev_data = CASE 
+                            WHEN cohort_candidates.last_upload_id = EXCLUDED.last_upload_id THEN cohort_candidates.prev_data
+                            ELSE jsonb_build_object(
+                                'client', cohort_candidates.client,
+                                'email', cohort_candidates.email,
+                                'phone', cohort_candidates.phone,
+                                'cohort', cohort_candidates.cohort
+                            )
+                        END,
+                        last_upload_id = EXCLUDED.last_upload_id
+                """, (assigned_day, name_val, email_val, phone_val, id_val, tier_val, raw_source, batch_id))
+            except psycopg2.Error:
+                cur.execute("ROLLBACK TO SAVEPOINT row_savepoint")
+                skipped_duplicates += 1
+                continue
 
         conn.commit()
         if skipped_duplicates:
@@ -507,14 +507,14 @@ def upload(cohort_context):
         else:
             flash(f"Successfully imported. | Batch ID: {batch_id}", "success")
         # Store batch_id in session so the Revert button knows which one to undo
-        session['last_batch_id'] = batch_id 
+        session['last_batch_id'] = batch_id
 
     except Exception as e:
         if conn: conn.rollback()
         flash(f"Upload error: {str(e)}", "danger")
     finally:
         if conn: release_db(conn)
-        
+
     return redirect(url_for("dashboard", cohort=cohort_context))
 
 @app.route("/revert_last_upload")

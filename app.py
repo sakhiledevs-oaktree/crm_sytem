@@ -204,8 +204,14 @@ def load_tabular_file(file):
             return pd.read_csv(io.BytesIO(file_bytes), encoding="utf-8-sig")
 
     elif filename.endswith((".xlsx", ".xls")):
-        # Excel Teams fallback (skipping the 9-line summary)
-        return pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl', skiprows=9)
+       # Try reading normally first (plain contact/ticket lists have headers on row 1)
+       df = pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl')
+       normalized_cols = [str(c).strip().lower() for c in df.columns]
+       # If nothing looks like a real header, it's probably a Teams export
+       # with 9 rows of metadata before the actual header row
+       if not any(k in " ".join(normalized_cols) for k in ["name", "email", "id", "phone", "surname"]):
+           df = pd.read_excel(io.BytesIO(file_bytes), engine='openpyxl', skiprows=9)
+       return df
     
     raise ValueError("Unsupported format.")
 

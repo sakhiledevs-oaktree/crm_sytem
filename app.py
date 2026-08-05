@@ -436,14 +436,26 @@ def upload(cohort_context):
             row_dict = row.to_dict()
             
             # --- DEFINE THESE VARIABLES FIRST ---
-            name_val = get_clean_row_val(row_dict, ["Client Name", "Name", "Full Name"])
-            phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
-            tier_val = get_clean_row_val(row_dict, ["Tier"])
-            id_val = ultimate_id_fix(get_clean_row_val(row_dict, ["ID Number", "Identity", "ID"]))
-            email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
-            
+            if cohort_context == "IgniteSummit":
+             first_val = get_clean_row_val(row_dict, ["Name", "First Name"])
+             last_val = get_clean_row_val(row_dict, ["Surname", "Last Name"])
+             name_val = f"{first_val} {last_val}".strip()
+             phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
+             tier_val = get_clean_row_val(row_dict, ["Tier"])
+             id_val = get_clean_row_val(row_dict, ["Company ID"])
+             email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
+            else:
+             name_val = get_clean_row_val(row_dict, ["Client Name", "Name", "Full Name"])
+             phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
+             tier_val = get_clean_row_val(row_dict, ["Tier"])
+             id_val = ultimate_id_fix(get_clean_row_val(row_dict, ["ID Number", "Identity", "ID"]))
+             email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
+
             if not id_val: continue
 
+
+
+            
             raw_source = get_clean_row_val(row_dict, ["source"])
             m_digit = re.search(r"\d", str(raw_source))
             assigned_day = MENTORSHIP_MAP.get(m_digit.group(0) if m_digit else None, cohort_context)

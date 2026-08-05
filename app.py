@@ -474,35 +474,35 @@ def upload(cohort_context):
 
             cur.execute("""
                 INSERT INTO cohort_candidates (cohort, client, email, phone, id_number, tier, source, last_upload_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id_number) DO UPDATE SET
-                    -- 1. Always update the Name if provided (to keep it fresh)
-                    client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
-                    
-                    -- 2. "Smart Fill" Email: Only update if current is empty AND new is NOT empty
-                    email = CASE 
-                        WHEN (cohort_candidates.email IS NULL OR cohort_candidates.email = '' OR cohort_candidates.email = 'pending@oaktree.co.za') 
-                        THEN COALESCE(NULLIF(EXCLUDED.email, ''), cohort_candidates.email)
-                        ELSE cohort_candidates.email 
-                    END,
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (email) DO UPDATE SET
+    -- Move this contact into the new cohort/tab
+    cohort = EXCLUDED.cohort,
 
-                    -- 3. "Smart Fill" Phone: Only update if current is empty/NA AND new is NOT empty
-                    phone = CASE 
-                        WHEN (cohort_candidates.phone IS NULL OR cohort_candidates.phone = '' OR cohort_candidates.phone = 'N/A') 
-                        THEN COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone)
-                        ELSE cohort_candidates.phone 
-                    END,
+    -- 1. Always update the Name if provided (to keep it fresh)
+    client = COALESCE(NULLIF(EXCLUDED.client, ''), cohort_candidates.client),
 
-                    -- 4. Track this batch for the Revert button
-                    prev_data = CASE 
-                        WHEN cohort_candidates.last_upload_id = EXCLUDED.last_upload_id THEN cohort_candidates.prev_data
-                        ELSE jsonb_build_object(
-                            'client', cohort_candidates.client,
-                            'email', cohort_candidates.email,
-                            'phone', cohort_candidates.phone
-                        )
-                    END,
-                    last_upload_id = EXCLUDED.last_upload_id
+    -- 2. Keep the ID in sync with this import
+    id_number = COALESCE(NULLIF(EXCLUDED.id_number, ''), cohort_candidates.id_number),
+
+    -- 3. "Smart Fill" Phone: Only update if current is empty/NA AND new is NOT empty
+    phone = CASE 
+        WHEN (cohort_candidates.phone IS NULL OR cohort_candidates.phone = '' OR cohort_candidates.phone = 'N/A') 
+        THEN COALESCE(NULLIF(EXCLUDED.phone, ''), cohort_candidates.phone)
+        ELSE cohort_candidates.phone 
+    END,
+
+    -- 4. Track this batch for the Revert button
+    prev_data = CASE 
+        WHEN cohort_candidates.last_upload_id = EXCLUDED.last_upload_id THEN cohort_candidates.prev_data
+        ELSE jsonb_build_object(
+            'client', cohort_candidates.client,
+            'email', cohort_candidates.email,
+            'phone', cohort_candidates.phone,
+            'cohort', cohort_candidates.cohort
+        )
+    END,
+    last_upload_id = EXCLUDED.last_upload_id
             """, (assigned_day, name_val, email_val, phone_val, id_val, tier_val, raw_source, batch_id))
 
         conn.commit()

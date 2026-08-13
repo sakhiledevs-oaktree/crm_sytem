@@ -453,11 +453,14 @@ def upload(cohort_context):
             if cohort_context == "IgniteSummit":
                 first_val = get_clean_row_val(row_dict, ["Name", "First Name"])
                 last_val = get_clean_row_val(row_dict, ["Surname", "Last Name"])
-                name_val = f"{first_val} {last_val}".strip()
-                phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile", "Cell Phone Number"])
+                combined_name = f"{first_val} {last_val}".strip()
+                name_val = combined_name if combined_name else get_clean_row_val(row_dict, ["Client Name", "Full Name"])
+                phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile", "Cell Phone Number", "Phone Number"])
                 tier_val = get_clean_row_val(row_dict, ["Tier"])
                 id_val = get_clean_row_val(row_dict, ["Company ID"])
                 email_val = get_clean_row_val(row_dict, ["Email", "Email Address"]).lower().strip()
+                if not id_val:
+                    id_val = email_val
             else:
                 name_val = get_clean_row_val(row_dict, ["Client Name", "Name", "Full Name"])
                 phone_val = get_clean_row_val(row_dict, ["Phone", "Mobile"])
